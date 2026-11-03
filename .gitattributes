@@ -1,0 +1,12 @@
+# Obtenir des fins de ligne cohérentes sur Windows/Linux (repo multi-OS)
+* text=auto
+*.md text
+*.yml text
+*.yaml text
+*.sh text eol=lf
+*.py text eol=lf
+*.conf text eol=lf
+*.sql text eol=lf
+*.png binary
+*.jpg binary
+*.webp binary

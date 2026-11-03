@@ -1,0 +1,33 @@
+# ---- Secrets & environnement ----
+.env
+.env.*
+!.env.example
+secrets/*.txt
+secrets/*.key
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Node / frontend ----
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+
+# ---- Docker & sortie ----
+*.log
+coverage/
+htmlcov/
+.benchmarks/
+load-results/*.raw
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
