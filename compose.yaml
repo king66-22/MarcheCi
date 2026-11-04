@@ -1,0 +1,237 @@
+# ============================================================
+# MarchéCI — orchestration complète (une seule commande : docker compose up)
+#   démarrage : docker compose up -d --build   (moteur < 2 min sur 4 Go)
+#   scaling   : docker compose up -d --scale catalogue=3
+#
+# Décisions maîtrisées (docs/architecture/01-05) :
+#   * 1 serveur PostgreSQL + 4 bases logiques (budget mémoire VM 4 Go)
+#   * Redis cache 60 s sur la liste produits
+#   * RabbitMQ durable : queue order.created + DLQ order.created.dlq
+#   * réseaux séparés front / back ; SEULE la gateway expose un port (80)
+#   * aucune donnée (DB, cache, broker) n'est exposée publiquement
+# ============================================================
+
+name: marcheci
+
+x-app-peers: &front-back
+  networks:
+    - front
+    - back
+
+services:
+  # ---------------- Infrastructure (réseau BACK uniquement) ----------------
+  postgres:
+    image: postgres:16-alpine
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_OWNER_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    networks: [back]
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_OWNER_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    networks: [back]
+    mem_limit: 160m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitdata:/var/lib/rabbitmq
+    networks: [back]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ---------------- Migrations one-shot (une par SERVICE, pas par réplique) ----------------
+  migrate-catalogue:
+    build: services/catalogue
+    image: marcheci/catalogue
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment: &env-catalogue
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+psycopg2://${PGCAT_USER}:${PGCAT_PASSWORD}@postgres:5432/${PGCAT_DB}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_ENABLED: "true"
+      PRODUCTS_CACHE_TTL_SECONDS: "60"
+      JWT_SECRET: ${JWT_SECRET}
+    networks: [back]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: "no"
+    mem_limit: 224m
+
+  migrate-utilisateurs:
+    build: services/utilisateurs
+    image: marcheci/utilisateurs
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment: &env-utilisateurs
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+psycopg2://${PGUSR_USER}:${PGUSR_PASSWORD}@postgres:5432/${PGUSR_DB}
+      REDIS_URL: redis://redis:6379/1
+      REDIS_ENABLED: "true"
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_MINUTES: "60"
+      SYSTEM_EMAIL: ${SVC_COMMANDES_EMAIL}
+    networks: [back]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: "no"
+    mem_limit: 224m
+
+  migrate-commandes:
+    build: services/commandes
+    image: marcheci/commandes
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment: &env-commandes
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+psycopg2://${PGCMD_USER}:${PGCMD_PASSWORD}@postgres:5432/${PGCMD_DB}
+      CATALOGUE_URL: http://catalogue:8000
+      UTILISATEURS_URL: http://utilisateurs:8000
+      EVENTS_ENABLED: "true"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      SVC_COMMANDES_EMAIL: ${SVC_COMMANDES_EMAIL}
+      SVC_COMMANDES_PASSWORD: ${SVC_COMMANDES_PASSWORD}
+    networks: [back]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+    mem_limit: 224m
+
+  migrate-notifications:
+    build: services/notifications
+    image: marcheci/notifications
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment: &env-notifications
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+psycopg2://${PGNTF_USER}:${PGNTF_PASSWORD}@postgres:5432/${PGNTF_DB}
+      EVENTS_ENABLED: "true"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    networks: [back]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+    mem_limit: 224m
+
+  # ---------------- Amorçage des comptes (one-shot, idempotent) ----------------
+  bootstrap:
+    build: services/utilisateurs
+    command: ["python", "/scripts/init_admins.py"]
+    environment:
+      <<: *env-utilisateurs
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SVC_COMMANDES_EMAIL: ${SVC_COMMANDES_EMAIL}
+      SVC_COMMANDES_PASSWORD: ${SVC_COMMANDES_PASSWORD}
+    volumes:
+      - ./docker/bootstrap:/scripts:ro
+    networks: [back]
+    depends_on:
+      migrate-utilisateurs: { condition: service_completed_successfully }
+    restart: "no"
+    mem_limit: 224m
+
+  # ---------------- Microservices (réseaux front + back) ----------------
+  catalogue:
+    image: marcheci/catalogue
+    environment: *env-catalogue
+    <<: *front-back
+    depends_on:
+      migrate-catalogue: { condition: service_completed_successfully }
+    restart: unless-stopped
+    mem_limit: 224m
+    # PAS de ports publiés et PAS de container_name : indispensable pour
+    # `docker compose up -d --scale catalogue=3` (DNS round-robin via Nginx)
+    deploy:
+      replicas: 1
+
+  commandes:
+    image: marcheci/commandes
+    environment: *env-commandes
+    <<: *front-back
+    depends_on:
+      migrate-commandes: { condition: service_completed_successfully }
+      bootstrap: { condition: service_completed_successfully }
+      rabbitmq: { condition: service_healthy }
+      catalogue: { condition: service_started }
+      utilisateurs: { condition: service_started }
+    restart: unless-stopped
+    mem_limit: 224m
+
+  utilisateurs:
+    image: marcheci/utilisateurs
+    environment: *env-utilisateurs
+    <<: *front-back
+    depends_on:
+      bootstrap: { condition: service_completed_successfully }
+    restart: unless-stopped
+    mem_limit: 224m
+
+  notifications:
+    image: marcheci/notifications
+    environment: *env-notifications
+    <<: *front-back
+    depends_on:
+      migrate-notifications: { condition: service_completed_successfully }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+    mem_limit: 224m
+
+  # ---------------- Gateway (SEUL service exposé) ----------------
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/gateway/Dockerfile
+    ports:
+      - "${GATEWAY_PORT:-80}:80"
+    networks: [front]
+    depends_on:
+      catalogue: { condition: service_started }
+      commandes: { condition: service_started }
+      utilisateurs: { condition: service_started }
+      notifications: { condition: service_started }
+    restart: unless-stopped
+    mem_limit: 64m
+
+networks:
+  front:
+    driver: bridge
+  back:
+    driver: bridge
+
+volumes:
+  pgdata:
+  rabbitdata:

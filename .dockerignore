@@ -1,0 +1,17 @@
+# Contextes de build minimaux (gateway = racine du repo)
+.git
+.gitignore
+.venv
+venv
+**/__pycache__
+**/*.pyc
+**/node_modules
+frontend/dist
+**/*.db
+**/*.sqlite*
+*.log
+.env
+env/
+tests/
+docs/
+downloads/
