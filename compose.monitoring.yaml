@@ -1,0 +1,96 @@
+# ============================================================
+# Pile de supervision Zabbix (Étape 6) — NE FAIT PAS PARTIE du `compose up`
+#
+# Usage :
+#   docker compose -f compose.monitoring.yaml up -d        (démarre la pile)
+#   .venv\Scripts\python.exe tests\zabbix\provisioning.py  (hôte + items + triggers)
+#   docker compose -f compose.monitoring.yaml down
+#
+# Réseaux : le serveur Zabbix rejoint marcheci_back (HTTP direct vers chaque
+# service : catalogue:8000, …) et marcheci_front (gateway). La Web UI est
+# exposée sur 8090 UNIQUEMENT (documentation + démonstration).
+# ============================================================
+
+name: marcheci-monitoring
+
+services:
+  zabbix-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: ${MON_ZBX_DB_PASSWORD}
+      POSTGRES_DB: zabbix
+    volumes:
+      - zabbixdb:/var/lib/postgresql/data
+    networks: [monitoring]
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zabbix"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:7.0-alpine
+    environment:
+      DB_SERVER_HOST: zabbix-db
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: ${MON_ZBX_DB_PASSWORD}
+      POSTGRES_DB: zabbix
+      ZBX_STARTPOLLERS: "5"
+      ZBX_STARTHTTPPOLLERS: "5"
+      ZBX_CACHESIZE: "64M"
+    networks:
+      - monitoring
+      - marcheci_back
+      - marcheci_front
+    mem_limit: 384m
+    depends_on:
+      zabbix-db: { condition: service_healthy }
+    restart: unless-stopped
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:7.0-alpine
+    environment:
+      DB_SERVER_HOST: zabbix-db
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: ${MON_ZBX_DB_PASSWORD}
+      POSTGRES_DB: zabbix
+      ZBX_SERVER_HOST: zabbix-server
+      PHP_TZ: Africa/Abidjan
+    ports:
+      - "${MON_WEB_PORT:-8090}:8080"
+    networks:
+      - monitoring
+    mem_limit: 256m
+    depends_on:
+      zabbix-db: { condition: service_healthy }
+      zabbix-server: { condition: service_started }
+    restart: unless-stopped
+
+  # Agent 2 : surveillance conteneurisée standard (agent.ping, uptime système…)
+  zabbix-agent2:
+    image: zabbix/zabbix-agent2:7.0-alpine
+    environment:
+      ZBX_HOSTNAME: marcheci-agent
+      ZBX_SERVER_HOST: zabbix-server
+      ZBX_SERVER_ACTIVE: zabbix-server
+      ZBX_PASSIVE_ALLOW: "true"
+      ZBX_ACTIVE_ALLOW: "true"
+    networks: [monitoring]
+    mem_limit: 64m
+    depends_on:
+      zabbix-server: { condition: service_started }
+    restart: unless-stopped
+
+networks:
+  monitoring:
+    driver: bridge
+  marcheci_front:
+    external: true
+  marcheci_back:
+    external: true
+
+volumes:
+  zabbixdb:
