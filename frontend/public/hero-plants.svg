@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Illustration : étal de marché coloré">
+  <!-- soleil -->
+  <circle cx="318" cy="86" r="40" fill="#d9a516" opacity="0.9"/>
+  <!-- kiosque -->
+  <g>
+    <!-- auvent rayé -->
+    <polygon points="70,190 130,140 270,140 330,190" fill="#d96c3c"/>
+    <polygon points="130,140 190,190 130,190" fill="#c25523" transform="translate(60,0) scale(-1,1) translate(-190,0)"/>
+    <path d="M70 190 q65 26 130 0 q65 26 130 0 l0 16 q-65 24 -130 0 q-65 24 -130 0 z" fill="#fae8e3"/>
+    <path d="M135 190 q65 26 130 0" fill="none" stroke="#a34318" stroke-width="4" stroke-linecap="round"/>
+    <!-- poteaux -->
+    <rect x="74" y="206" width="12" height="120" rx="4" fill="#1d5c46"/>
+    <rect x="314" y="206" width="12" height="120" rx="4" fill="#1d5c46"/>
+    <!-- tabel -->
+    <rect x="96" y="252" width="208" height="18" rx="5" fill="#e9dfcd"/>
+    <!-- cageots -->
+    <rect x="110" y="270" width="56" height="30" rx="4" fill="#fae8e3" stroke="#e9dfcd" stroke-width="3"/>
+    <rect x="234" y="270" width="56" height="30" rx="4" fill="#fae8e3" stroke="#e9dfcd" stroke-width="3"/>
+    <!-- fruits -->
+    <circle cx="128" cy="240" r="12" fill="#d96c3c"/>
+    <circle cx="152" cy="236" r="12" fill="#1d5c46"/>
+    <circle cx="176" cy="240" r="12" fill="#d9a516"/>
+    <circle cx="248" cy="240" r="12" fill="#c25523"/>
+    <circle cx="272" cy="236" r="12" fill="#1d5c46"/>
+  </g>
+  <!-- sol -->
+  <rect x="40" y="326" width="320" height="10" rx="5" fill="#e9dfcd"/>
+</svg>

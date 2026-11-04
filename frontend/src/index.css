@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* Identité MarchéCI — marché d'Adjamé : terracotta, vert profond, sable */
+@theme {
+  --color-terracotta-50:  #fdf5f3;
+  --color-terracotta-100: #fae8e3;
+  --color-terracotta-300: #f0a48c;
+  --color-terracotta-500: #d96c3c;
+  --color-terracotta-600: #c25523;
+  --color-terracotta-700: #a34318;
+  --color-marche-700: #1d5c46;
+  --color-marche-800: #154435;
+  --color-marche-900: #0d312A;
+  --color-sable-50:  #faf7f2;
+  --color-sable-100: #f3ede2;
+  --color-sable-200: #e9dfcd;
+  --color-or-500: #d9a516;
+}
+
+html { scroll-behavior: smooth; }
+body { @apply bg-sable-50 text-slate-800 antialiased; }
+
+/* Focus accessible global */
+:focus-visible { outline: 2px solid var(--color-terracotta-600); outline-offset: 2px; }
+
+@layer components {
+  .button-primary { @apply inline-flex items-center gap-2 rounded-lg bg-terracotta-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-terracotta-700 disabled:cursor-not-allowed disabled:opacity-60; }
+  .button-secondary { @apply inline-flex items-center gap-2 rounded-lg border border-sable-200 bg-white px-4 py-2 text-sm font-semibold text-marche-800 transition hover:bg-sable-100 disabled:cursor-not-allowed disabled:opacity-60; }
+  .button-danger { @apply inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60; }
+  .card { @apply overflow-hidden rounded-xl border border-sable-200 bg-white shadow-sm; }
+  .input-search { @apply w-full rounded-lg border border-sable-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-terracotta-500 focus:outline-none; }
+}
