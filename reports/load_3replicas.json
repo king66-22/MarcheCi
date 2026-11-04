@@ -1,0 +1,30 @@
+{
+  "scenario": "load_catalogue",
+  "tag": "replicas=3",
+  "vus_pic": 50,
+  "ramp_s": 20,
+  "hold_s": 40,
+  "total": {
+    "requetes": 2679,
+    "debit_rps": 38,
+    "p95_ms": 90,
+    "rate_checks": 1,
+    "duree_ms_total": 1039
+  },
+  "cache_redis": {
+    "p50_ms": 26,
+    "p95_ms": 81,
+    "max_ms": 211,
+    "requetes": 1874
+  },
+  "db_postgres": {
+    "p50_ms": 34,
+    "p95_ms": 101,
+    "max_ms": 224,
+    "requetes": 805
+  },
+  "erreurs": {
+    "cache": 0,
+    "db": 0
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "scenario": "resilience_incident_commandes",
+  "catalogue": {
+    "requetes": 305,
+    "erreurs": 0,
+    "p95_ms": 243
+  },
+  "commandes": {
+    "ok_200": 141,
+    "panne_propre_json": 164,
+    "panne_sale": 0
+  }
+}
