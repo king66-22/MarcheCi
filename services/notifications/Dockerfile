@@ -1,19 +1,19 @@
 # syntax=docker/dockerfile:1
 # ---- Image notifications : multi-stage, non-root, < 200 Mo ----
-FROM python:3.12-slim AS deps
+FROM python:3.12-alpine AS deps
 WORKDIR /build
 COPY requirements-prod.txt ./
 RUN python -m pip install --no-cache-dir --prefix=/install -r requirements-prod.txt
 
-FROM python:3.12-slim AS runtime
-RUN useradd --create-home --uid 10001 appuser
+FROM python:3.12-alpine AS runtime
+RUN addgroup -g 10001 appgroup && adduser -D -H -u 10001 -G appgroup appuser
 COPY --from=deps /install /usr/local
 
 WORKDIR /app
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
-RUN chown -R appuser:appuser /app
+RUN chown -R appuser:appgroup /app
 
 USER appuser
 EXPOSE 8000

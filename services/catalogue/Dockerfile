@@ -1,21 +1,21 @@
 # syntax=docker/dockerfile:1
 # ---- Image catalogue : multi-stage, non-root, < 200 Mo ----
-FROM python:3.12-slim AS deps
+# Alpine = base ~60 Mo ; les dépendances binaires utilisent des wheels musllinux.
+FROM python:3.12-alpine AS deps
 WORKDIR /build
 COPY requirements-prod.txt ./
-# Installe dans un préfixe isolé, copié tel quel dans l'étape finale
 RUN python -m pip install --no-cache-dir --prefix=/install -r requirements-prod.txt
 
-FROM python:3.12-slim AS runtime
+FROM python:3.12-alpine AS runtime
 # Utilisateur applicatif dédié, UID > 10 000 (non-root exigé)
-RUN useradd --create-home --uid 10001 appuser
+RUN addgroup -g 10001 appgroup && adduser -D -H -u 10001 -G appgroup appuser
 COPY --from=deps /install /usr/local
 
 WORKDIR /app
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
-RUN chown -R appuser:appuser /app
+RUN chown -R appuser:appgroup /app
 
 USER appuser
 EXPOSE 8000
