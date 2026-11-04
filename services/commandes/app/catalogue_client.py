@@ -40,7 +40,7 @@ class CatalogueClient:
         """Récupère les produits de référence : NE JAMAIS FAIRE CONFIANCE au prix client."""
         if not product_ids:
             return []
-        params = {"ids": ",".join(str(i) for i in sorted(set(product_ids))), "page_size": 200}
+        params = {"ids": ",".join(str(i) for i in sorted(set(product_ids))), "page_size": 100}
         try:
             resp = httpx.get(
                 f"{self.base_url}/products",
