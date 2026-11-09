@@ -94,10 +94,10 @@ historique a dépassé son seuil de latence et le bénéfice de trois répliques
 4. Démarrer Zabbix si nécessaire :
 
    ```powershell
-   docker compose -f compose.monitoring.yaml up -d
-   .\.venv\Scripts\python.exe scripts\configure_zabbix_admin.py
+   docker compose -f monitoring/zabbix/compose.yaml up -d
+   .\.venv\Scripts\python.exe monitoring\zabbix\configure_zabbix_admin.py
    $env:ZABBIX_API_URL = 'http://127.0.0.1:8090/api_jsonrpc.php'
-   .\.venv\Scripts\python.exe tests\zabbix\provisioning.py verify
+   .\.venv\Scripts\python.exe monitoring\zabbix\provisioning.py verify
    ```
 
    L’interface est disponible sur `http://127.0.0.1:8090` avec les paramètres
@@ -183,33 +183,33 @@ antérieure.
 
 ## Supervision, scalabilité et rapports
 
-- `tests/zabbix/provisioning.py verify` provisionne les sondes HTTP et vérifie
+- `monitoring/zabbix/provisioning.py verify` provisionne les sondes HTTP et vérifie
   leur collecte. Le mode `alerte` arrête volontairement toutes les répliques du
   Catalogue; ne le lancer que sur un environnement de démonstration isolé.
 - Les scénarios k6 sont dans `tests/load/`. Ils lisent Catalogue, mais
   l’orchestrateur fourni arrête Commandes pendant le test de résilience et lance
   les variations d’échelle sur le projet Compose courant. Exécuter ces scénarios
   uniquement avec un projet de test dédié.
-- `reports/load_1replica.json`, `reports/load_3replicas.json` et
-  `reports/resilience.json` sont des résumés historiques. Le run isolé du
+- `docs/reports/load_1replica.json`, `docs/reports/load_3replicas.json` et
+  `docs/reports/resilience.json` sont des résumés historiques. Le run isolé du
   04/11/2026 à 50 VU a dépassé les seuils de latence et rendu les conteneurs du
   laboratoire unhealthy; ses données détaillées sont conservées dans
-  `reports/e2e_load_1replica_raw.json`. Ce résultat n’est pas présenté comme une
+  `docs/reports/raw/e2e_load_1replica_raw.json`. Ce résultat n'est pas présenté comme une
   performance acceptable ni comparé directement aux anciens résumés.
 
 ## Documentation technique
 
 - [Architecture et choix techniques](docs/architecture/01-architecture-technique.md)
 - [Modèles de données](docs/architecture/02-modeles-de-donnees.md)
-- [Contrats des API](docs/architecture/03-specifications-api.md)
+- [Contrats des API](docs/api/specifications-api.md)
 - [Réseaux et communications](docs/architecture/04-reseaux-et-communications.md)
 - [Analyse et plan de réalisation](docs/architecture/05-risques-et-plan.md)
-- [Rapport d’analyse](reports/rapport_audit_final.md)
-- [Rapport de validation](reports/rapport_tests_reels.md)
-- [Points ouverts](reports/problemes_restants.md)
-- [Autres rapports et livrables](reports/)
+- [Rapport d’analyse](docs/reports/rapport_audit_final.md)
+- [Rapport de validation](docs/reports/rapport_tests_reels.md)
+- [Points ouverts](docs/reports/problemes_restants.md)
+- [Autres rapports et livrables](docs/reports/)
 
-Les livrables de présentation sont `reports/rapport_technique_MarcheCI.pdf` et
-`reports/Diaporama_présentation_MarcheCI.pptx`. Ils distinguent les résultats
+Les livrables de présentation sont `docs/reports/rapport_technique_MarcheCI.pdf` et
+`docs/reports/Diaporama_présentation_MarcheCI.pptx`. Ils distinguent les résultats
 vérifiés des éléments restant à démontrer, notamment la charge à trois
 répliques, l’alerte de panne Zabbix et le déploiement sur la pile principale.

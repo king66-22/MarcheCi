@@ -2,9 +2,9 @@
 # Pile de supervision Zabbix (Étape 6) — NE FAIT PAS PARTIE du `compose up`
 #
 # Usage :
-#   docker compose -f compose.monitoring.yaml up -d        (démarre la pile)
-#   .venv\Scripts\python.exe tests\zabbix\provisioning.py  (hôte + items + triggers)
-#   docker compose -f compose.monitoring.yaml down
+#   docker compose -f monitoring/zabbix/compose.yaml up -d  (démarre la pile)
+#   .venv\Scripts\python.exe monitoring\zabbix\provisioning.py  (hôte + items + triggers)
+#   docker compose -f monitoring/zabbix/compose.yaml down
 #
 # Réseaux : le serveur Zabbix rejoint marcheci_back (HTTP direct vers chaque
 # service : catalogue:8000, …) et marcheci_front (gateway). La Web UI est

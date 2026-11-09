@@ -8,8 +8,8 @@ Modes :
   python tests/load/orchestrateur.py resilience — incident commandes 20 s sous charge
   python tests/load/orchestrateur.py tout       — les deux, à la suite
 
-Résultats : reports/load_1replica.json, reports/load_3replicas.json,
-            reports/resilience.json + tableau de synthèse en console.
+Résultats : docs/reports/load_1replica.json, docs/reports/load_3replicas.json,
+            docs/reports/resilience.json + tableau de synthèse en console.
 """
 
 import json
@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-REPORTS = ROOT / "reports"
+REPORTS = ROOT / "docs" / "reports"
 TESTS = ROOT / "tests" / "load"
 
 K6_IMAGE = "grafana/k6:1.0.0@sha256:f21270290d702cbf0a7d6ba5d7ed100b63bcb233b558b885ed787547b3488279"

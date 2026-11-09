@@ -86,6 +86,6 @@ Les valeurs ci-dessous sont des plafonds de conteneur, pas des mesures d’usage
 | catalogue ×3 | 3 × 128 Mo | |
 | commandes, utilisateurs, notifications | 3 × 128 Mo | |
 | gateway + frontend | 64 + 32 Mo | |
-| Zabbix (pile séparée) | ~500 Mo activable | `compose.monitoring.yaml`, optionnel |
+| Zabbix (pile séparée) | ~500 Mo activable | `monitoring/zabbix/compose.yaml`, optionnel |
 
 Le rapport technique du 4 novembre signale une dégradation temporaire des contrôles de santé pendant un test de charge. Ne pas lancer les scénarios de charge ou de panne sur une pile partagée.

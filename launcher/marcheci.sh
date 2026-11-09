@@ -6,7 +6,7 @@ cd "$ROOT"
 ACTION="${1:-start}"
 SERVICE="${2:-}"
 CORE_COMPOSE="compose.yaml"
-MONITOR_COMPOSE="compose.monitoring.yaml"
+MONITOR_COMPOSE="monitoring/zabbix/compose.yaml"
 SECRET_FILES="postgres_owner_password.secret catalogue_db_password.secret commandes_db_password.secret utilisateurs_db_password.secret notifications_db_password.secret catalogue_database_url.secret commandes_database_url.secret utilisateurs_database_url.secret notifications_database_url.secret jwt_secret.secret rabbitmq_password.secret svc_commandes_password.secret admin_password.secret zabbix_db_password.secret"
 
 fail() { printf '\n[ERREUR] %s\n' "$1" >&2; exit 1; }
@@ -41,7 +41,7 @@ check_config() {
     fi
   done
   for name in $SECRET_FILES; do [ -s "secrets/$name" ] || fail "Fichier secret manquant : secrets/$name"; done
-  [ -f "$CORE_COMPOSE" ] && [ -f docker/gateway/nginx.conf ] || fail 'Fichiers du projet manquants. Vérifiez que le dépôt MarchéCI est complet.'
+  [ -f "$CORE_COMPOSE" ] && [ -f gateway/nginx.conf ] || fail 'Fichiers du projet manquants. Vérifiez que le dépôt MarchéCI est complet.'
   ok 'Configuration, fichiers secrets et Compose vérifiés.'
 }
 
@@ -142,8 +142,8 @@ case "$ACTION" in
     case "$monitor_host" in 0.0.0.0|::) monitor_host=127.0.0.1 ;; esac
     monitor_port="$(awk -F= '$1=="MON_WEB_PORT" {gsub(/[[:space:]]/,"",$2); print $2; exit}' .env)"
     monitor_port="${monitor_port:-8090}"
-    ZABBIX_API_HOST="$monitor_host" ZABBIX_API_PORT="$monitor_port" "$py" scripts/configure_zabbix_admin.py || fail 'Impossible de configurer le mot de passe administrateur Zabbix.'
-    ZABBIX_API_URL="http://$monitor_host:$monitor_port/api_jsonrpc.php" "$py" tests/zabbix/provisioning.py verify || fail 'Le provisionnement ou la collecte Zabbix a échoué. Consultez launcher/logs.sh zabbix-server.'
+    ZABBIX_API_HOST="$monitor_host" ZABBIX_API_PORT="$monitor_port" "$py" monitoring/zabbix/configure_zabbix_admin.py || fail 'Impossible de configurer le mot de passe administrateur Zabbix.'
+    ZABBIX_API_URL="http://$monitor_host:$monitor_port/api_jsonrpc.php" "$py" monitoring/zabbix/provisioning.py verify || fail 'Le provisionnement ou la collecte Zabbix a échoué. Consultez launcher/logs.sh zabbix-server.'
     monitor_url="http://$monitor_host:$monitor_port/"
     if wait_url "$monitor_url" 30; then ok "Zabbix accessible sur $monitor_url"; else fail 'Zabbix a démarré mais son interface ne répond pas encore.'; fi
     ;;

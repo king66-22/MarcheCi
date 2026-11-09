@@ -15,6 +15,14 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
+# ---- Bases locales de developpement ----
+*.db
+*.sqlite
+*.sqlite3
+
+# ---- Overrides locaux (pgAdmin, etc.) ----
+compose.pgadmin.yaml
+
 # ---- Node / frontend ----
 node_modules/
 dist/

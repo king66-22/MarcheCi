@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Continue'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $Root
 $ComposeFile = 'compose.yaml'
-$MonitoringFile = 'compose.monitoring.yaml'
+$MonitoringFile = 'monitoring/zabbix/compose.yaml'
 $SecretFiles = @(
     'postgres_owner_password.secret', 'catalogue_db_password.secret', 'commandes_db_password.secret',
     'utilisateurs_db_password.secret', 'notifications_db_password.secret', 'catalogue_database_url.secret',
@@ -104,7 +104,7 @@ function Start-Marketplace {
     }
     Check-Docker
     Invoke-ConfigCheck
-    if (-not (Test-Path 'compose.yaml') -or -not (Test-Path 'docker/gateway/nginx.conf')) { Fail 'Fichiers de lancement manquants. Vérifiez que vous êtes dans le dossier complet MarchéCI.' }
+    if (-not (Test-Path 'compose.yaml') -or -not (Test-Path 'gateway/nginx.conf')) { Fail 'Fichiers de lancement manquants. Vérifiez que vous êtes dans le dossier complet MarchéCI.' }
     & docker compose -f $ComposeFile config --quiet
     if ($LASTEXITCODE -ne 0) { Fail 'La configuration Docker Compose est invalide. Vérifiez .env et les fichiers du projet.' }
     Write-Host '[OK] Configuration Docker validée. Construction et démarrage des services…' -ForegroundColor Green
@@ -192,9 +192,9 @@ switch ($Action) {
         $env:ZABBIX_API_HOST = $monitorBind
         $env:ZABBIX_API_PORT = $monitorPort
         $env:ZABBIX_API_URL = "http://${monitorBind}:${monitorPort}/api_jsonrpc.php"
-        & $python.Exe @($python.Prefix) 'scripts/configure_zabbix_admin.py'
+        & $python.Exe @($python.Prefix) 'monitoring/zabbix/configure_zabbix_admin.py'
         if ($LASTEXITCODE -ne 0) { Fail 'La configuration du mot de passe administrateur Zabbix a échoué. Consultez launcher\logs.bat zabbix-web.' }
-        & $python.Exe @($python.Prefix) 'tests/zabbix/provisioning.py' 'verify'
+        & $python.Exe @($python.Prefix) 'monitoring/zabbix/provisioning.py' 'verify'
         if ($LASTEXITCODE -ne 0) { Fail 'Le provisionnement ou la collecte Zabbix a échoué. Consultez launcher\logs.bat zabbix-server.' }
         if (Wait-Url $monitorUrl 60) { Write-Host "[OK] Zabbix accessible sur $monitorUrl" -ForegroundColor Green }
         else { Fail "Zabbix a démarré mais son interface ne répond pas encore sur $monitorUrl." }
