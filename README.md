@@ -6,6 +6,27 @@ une passerelle Nginx, PostgreSQL, Redis, RabbitMQ et une pile Zabbix facultative
 
 ## Architecture et limites connues
 
+```
+Internet
+   │ :80 (seul port publié sur l'hôte)
+┌──▼──────────────────────────────┐
+│ gateway (Nginx)                 │
+│  "/"      → SPA React           │
+│  "/api/*" → services            │
+└──┬──────────────────────────────┘
+   │ réseau front
+┌──▼───────┬──────────┬────────────┬───────────────┐
+│catalogue │commandes │utilisateurs│ notifications │
+│ ×1 à ×3  │          │            │               │
+└──┬───────┴────┬─────┴──────┬─────┴───────┬───────┘
+   │ réseau back│            │             │
+┌──▼─────┐ ┌────▼────────────▼──┐ ┌────────▼──────┐
+│ Redis  │ │ PostgreSQL 16      │ │ RabbitMQ 3.13 │
+│ cache  │ │ 4 bases logiques   │ │ file + retry  │
+│ 60 s   │ │ 4 comptes SQL      │ │ + DLQ         │
+└────────┘ └────────────────────┘ └───────────────┘
+```
+
 - **Catalogue** : produits, catégories, prix et stock; cache Redis à TTL 60 s avec
   invalidation après écriture. Si Redis est indisponible, le service fonctionne
   sans cache et l’indique dans son healthcheck.
@@ -103,6 +124,21 @@ historique a dépassé son seuil de latence et le bénéfice de trois répliques
    L’interface est disponible sur `http://127.0.0.1:8090` avec les paramètres
    `ZABBIX_ADMIN_PASSWORD` de `.env` (le compte initial est `Admin`). Sur
    Windows, le launcher `launcher/monitoring.bat` automatise ces étapes.
+
+## Comptes de test
+
+Les comptes techniques sont créés automatiquement au premier démarrage par
+`docker/bootstrap/init_admins.py` (idempotent). Aucun mot de passe n'est écrit
+dans le dépôt : ils proviennent de `.env` et des fichiers `secrets/`.
+
+| Compte | Rôle | Usage | Mot de passe |
+|---|---|---|---|
+| `admin@marcheci.ci` | `ADMIN` | Administration : produits, catégories, commandes, utilisateurs, notifications | variable `ADMIN_PASSWORD` de `.env` |
+| `svc.commandes@marcheci.ci` | `ADMIN` technique | Appels internes Commandes → Catalogue (`adjust-stock`) | variable `SVC_COMMANDES_PASSWORD` de `.env` |
+| Compte client | `CLIENT` | Créé via `/inscription` ou `POST /api/utilisateurs/auth/register` | choisi à l'inscription |
+
+Pour une présentation, utilisez le fichier `.env` de démonstration fourni hors
+dépôt, ou remplacez les valeurs `CHANGE_ME` avant le premier démarrage.
 
 ## Accès API
 
