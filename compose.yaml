@@ -94,6 +94,8 @@ services:
       REDIS_ENABLED: "true"
       PRODUCTS_CACHE_TTL_SECONDS: "60"
       JWT_SECRET_FILE: /run/secrets/jwt_secret
+      MEDIA_ROOT: /data/media
+      MEDIA_MAX_UPLOAD_MB: "8"
     secrets: [catalogue_database_url, jwt_secret]
     networks: [back]
     depends_on:
@@ -195,6 +197,9 @@ services:
     environment: *env-catalogue
     secrets: [catalogue_database_url, jwt_secret]
     <<: *front-back
+    volumes:
+      # Photos produits : lecture/écriture par Catalogue, lecture seule par la gateway.
+      - media_data:/data/media
     depends_on:
       migrate-catalogue: { condition: service_completed_successfully }
     restart: unless-stopped
@@ -246,6 +251,8 @@ services:
       dockerfile: gateway/Dockerfile
     ports:
       - "${GATEWAY_PORT:-80}:8080"
+    volumes:
+      - media_data:/var/www/media:ro
     networks: [front]
     depends_on:
       catalogue: { condition: service_healthy }
@@ -264,6 +271,7 @@ networks:
 volumes:
   pgdata:
   rabbitdata:
+  media_data:
 
 secrets:
   postgres_owner_password:

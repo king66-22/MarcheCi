@@ -1,5 +1,11 @@
 /** Types alignés sur les schémas Pydantic des microservices. */
 
+export interface ProductImage {
+  id: number
+  url: string
+  position: number
+}
+
 export interface Product {
   id: number
   slug: string
@@ -7,9 +13,12 @@ export interface Product {
   description: string
   price_xof: number
   category_id: number | null
+  owner_id: number | null
   stock: number
   image_url: string | null
   is_active: boolean
+  /** Présent sur le détail produit uniquement (galerie ordonnée). */
+  images?: ProductImage[]
 }
 
 export interface Category {
@@ -55,12 +64,14 @@ export interface OrderPage {
   page_size: number
 }
 
+export type Role = 'CLIENT' | 'COMMERCANT' | 'ADMIN'
+
 export interface User {
   id: number
   email: string
   full_name: string
   phone: string | null
-  role: 'CLIENT' | 'ADMIN'
+  role: Role
   created_at?: string
   is_active?: boolean
 }
@@ -69,7 +80,7 @@ export interface TokenResponse {
   access_token: string
   token_type: string
   expires_in: number
-  role: 'CLIENT' | 'ADMIN'
+  role: Role
 }
 
 export interface NotificationRow {

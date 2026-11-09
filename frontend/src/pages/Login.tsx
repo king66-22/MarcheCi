@@ -19,8 +19,9 @@ export default function Login() {
     setBusy(true)
     setError(null)
     try {
-      await login(email.trim(), password)
-      navigate(from, { replace: true })
+      const me = await login(email.trim(), password)
+      // Un commerçant arrive directement dans son espace pour ajouter ses produits.
+      navigate(me.role === 'COMMERCANT' ? '/commercant' : from, { replace: true })
     } catch (err) {
       setError(errMessage(err, 'Identifiants incorrects ou service indisponible.'))
     } finally {
@@ -38,7 +39,10 @@ export default function Login() {
         <div className="auth-form">
         <p className="eyebrow">Heureux de vous retrouver</p>
         <h1 className="font-display mt-2 text-3xl font-bold text-marche-900">Connexion</h1>
-        <p className="mt-2 text-sm text-slate-500">Accédez à vos commandes et poursuivez vos achats.</p>
+        <p className="mt-2 text-sm text-slate-500">
+          Accédez à vos commandes et poursuivez vos achats. Les commerçants retrouvent
+          directement leur espace de gestion.
+        </p>
         <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4" noValidate>
           <Field label="Adresse email" required>
             <input

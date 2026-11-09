@@ -12,6 +12,8 @@ frontend/dist
 *.log
 .env
 env/
+secrets/
+media_data/
 tests/
 docs/
 downloads/

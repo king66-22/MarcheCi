@@ -9,18 +9,23 @@ import { useAuth } from '../context/AuthContext'
 export default function ProductDetail() {
   const { id } = useParams()
   const [product, setProduct] = useState<Product | null>(null)
+  const [activeImage, setActiveImage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [toast, setToast] = useState<string | null>(null)
   const { add } = useCart()
-  const { isAdmin } = useAuth()
+  const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
   const confirm = useConfirm()
 
   useEffect(() => {
     void catalogueApi
       .getProduct(Number(id))
-      .then((r) => { setProduct(r.data); setError(null) })
+      .then((r) => {
+        setProduct(r.data)
+        setActiveImage(r.data.image_url ?? r.data.images?.[0]?.url ?? null)
+        setError(null)
+      })
       .catch((e) => setError(errMessage(e)))
   }, [id])
 
@@ -36,6 +41,14 @@ export default function ProductDetail() {
 
   const restricted = product.stock <= 0
   const maxQty = Math.max(1, product.stock)
+  const gallery = product.images?.length
+    ? product.images.map((image) => image.url)
+    : product.image_url
+      ? [product.image_url]
+      : []
+  const ownerCanManage = Boolean(
+    user && (isAdmin || (user.role === 'COMMERCANT' && product.owner_id === user.id)),
+  )
 
   return (
     <div className="page-width py-8 sm:py-10">
@@ -45,10 +58,28 @@ export default function ProductDetail() {
       </nav>
 
       <div className="grid items-start gap-8 md:grid-cols-2 lg:gap-12">
-        <div className="card rounded-3xl bg-sable-100">
-          <img src={product.image_url || '/product-placeholder.svg'} alt={product.image_url ? product.name : ''} className="aspect-[4/3] w-full object-cover" onError={(event) => {
-            if (!event.currentTarget.src.endsWith('/product-placeholder.svg')) event.currentTarget.src = '/product-placeholder.svg'
-          }} />
+        <div>
+          <div className="card rounded-3xl bg-sable-100">
+            <img src={activeImage || '/product-placeholder.svg'} alt={activeImage ? product.name : ''} className="aspect-[4/3] w-full object-cover" onError={(event) => {
+              if (!event.currentTarget.src.endsWith('/product-placeholder.svg')) event.currentTarget.src = '/product-placeholder.svg'
+            }} />
+          </div>
+          {gallery.length > 1 && (
+            <ul className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-5" aria-label="Autres photos du produit">
+              {gallery.map((url) => (
+                <li key={url}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveImage(url)}
+                    className={`block w-full overflow-hidden rounded-xl border-2 transition ${activeImage === url ? 'border-terracotta-500' : 'border-transparent hover:border-sable-300'}`}
+                    aria-label="Afficher cette photo"
+                  >
+                    <img src={url} alt="" className="aspect-square w-full object-cover" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="flex flex-col items-start gap-4 py-1">
@@ -89,6 +120,15 @@ export default function ProductDetail() {
             >
               Ajouter au panier · {fcfa(product.price_xof * quantity)}
             </button>
+            {ownerCanManage && !isAdmin && (
+              <Link
+                to="/commercant/produits"
+                state={{ editProductId: product.id }}
+                className="button-secondary justify-center"
+              >
+                Gérer mes photos
+              </Link>
+            )}
             {isAdmin && <button
               className="button-danger justify-center"
               onClick={() =>

@@ -9,7 +9,15 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import User
-from ..schemas import LoginRequest, ProfileUpdate, RegisterRequest, TokenResponse, UserAdminRow, UserRead
+from ..schemas import (
+    LoginRequest,
+    ProfileUpdate,
+    RegisterRequest,
+    RoleUpdate,
+    TokenResponse,
+    UserAdminRow,
+    UserRead,
+)
 from ..security import (
     create_access_token,
     get_current_user,
@@ -28,7 +36,7 @@ DB = Annotated[Session, Depends(get_db)]
 
 @auth_router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def register(data: RegisterRequest, db: DB):
-    """Inscription d'un compte CLIENT. Rôle ADMIN uniquement par script d'amorçage."""
+    """Inscription d'un compte CLIENT ou COMMERCANT. ADMIN reste réservé à l'amorçage."""
     if db.scalar(select(User.id).where(User.email == data.email.lower())):
         raise HTTPException(status.HTTP_409_CONFLICT, "Un compte existe déjà avec cet email")
     user = User(
@@ -36,7 +44,7 @@ def register(data: RegisterRequest, db: DB):
         password_hash=hash_password(data.password),
         full_name=data.full_name.strip(),
         phone=data.phone,
-        role="CLIENT",
+        role=data.role,
     )
     db.add(user)
     db.commit()
@@ -106,3 +114,28 @@ def list_users(
         select(User).order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     ).all()
     return rows
+
+
+@router.patch("/users/{user_id}/role", response_model=UserAdminRow)
+def update_role(
+    user_id: int,
+    data: RoleUpdate,
+    _admin: Annotated[User, Depends(require_admin)],
+    db: DB,
+):
+    """Promeut un client en commerçant (ou l'inverse). Le rôle ADMIN n'est jamais modifiable ici."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Utilisateur introuvable")
+    if user.role == "ADMIN":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Le rôle ADMIN est réservé au script d'amorçage et ne peut pas être modifié",
+        )
+    # L'appelant est nécessairement ADMIN (require_admin), donc jamais la cible :
+    # aucune auto-modification de rôle n'est possible.
+    user.role = data.role
+    db.commit()
+    db.refresh(user)
+    logger.info("event", extra={"event": "user_role_updated", "user_id": user.id, "role": user.role})
+    return user

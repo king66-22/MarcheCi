@@ -35,11 +35,41 @@ class Product(Base):
     price_xof: Mapped[int] = mapped_column(BigInteger, nullable=False)
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
     stock: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Identifiant du commerçant propriétaire (utilisateurs.users.id, autre service :
+    # pas de FK inter-base). NULL = produit historique géré par la coopérative.
+    owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
 
     category: Mapped[Category | None] = relationship(back_populates="products")
+    images: Mapped[list["ProductImage"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+        order_by="ProductImage.position, ProductImage.id",
+    )
 
     # Le schéma Pydantic de l'API impose price_xof >= 0.
+
+
+class ProductImage(Base):
+    """Photo d'un produit, stockée sur le volume partagé `media_data`.
+
+    `url` est relative (`/media/products/<fichier>`) pour rester indépendante du
+    nom d'hôte. `filename` permet une suppression sûre sans reconstruire le chemin
+    depuis l'URL.
+    """
+
+    __tablename__ = "product_images"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    filename: Mapped[str] = mapped_column(String(120), nullable=False)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    product: Mapped[Product] = relationship(back_populates="images")

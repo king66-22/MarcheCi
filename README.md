@@ -30,6 +30,10 @@ Internet
 - **Catalogue** : produits, catégories, prix et stock; cache Redis à TTL 60 s avec
   invalidation après écriture. Si Redis est indisponible, le service fonctionne
   sans cache et l’indique dans son healthcheck.
+- **Photos produits** : un commerçant téléverse ses photos (galerie, appareil photo
+  du téléphone ou glisser-déposer). Les fichiers sont redimensionnés et stockés
+  dans le volume Docker `media_data`, puis servis par la gateway sous `/media/`.
+  Limites par défaut : 8 Mo par photo, 10 photos par produit.
 - **Commandes** : vérifie les prix et stocks via Catalogue, enregistre des
   instantanés de prix, et compense les réductions de stock si l’écriture échoue.
 - **Utilisateurs** : inscription, connexion, rôles et JWT; les mots de passe sont
@@ -37,12 +41,14 @@ Internet
 - **Notifications** : consomme les événements de commande; les notifications
   sont persistées. Leur état `SIMULE_ENVOYE` signifie qu’aucun fournisseur
   d’e-mail/SMS réel n’est configuré.
-- Le modèle d’accès comprend les rôles `CLIENT` et `ADMIN`. L’API et le frontend
-  ne proposent pas d’espace commerçant ni de propriétaire vendeur pour les
-  produits; les écritures de catalogue sont réservées à l’administration.
+- Le modèle d’accès comprend les rôles `CLIENT`, `COMMERCANT` et `ADMIN`. Un
+  commerçant dispose de l’espace `/commercant` : il crée ses produits et gère
+  leurs photos. Un produit appartient à un seul commerçant (`owner_id`) ; les
+  produits historiques restent sans propriétaire et sont gérés par l’ADMIN.
+  Un client peut être promu commerçant par l’administration.
 - Le panier vit dans le navigateur. Les prix et le stock sont contrôlés côté
-  serveur au passage de commande. Le paiement en ligne, l’envoi réel de
-  notifications et le téléversement d’images ne sont pas intégrés.
+  serveur au passage de commande. Le paiement en ligne et l’envoi réel de
+  notifications ne sont pas intégrés.
 - Les migrations ne créent pas de catalogue métier de démonstration. Sur une
   base neuve, un administrateur doit créer les catégories et produits avant que
   la boutique affiche des articles.
@@ -136,6 +142,7 @@ dans le dépôt : ils proviennent de `.env` et des fichiers `secrets/`.
 | `admin@marcheci.ci` | `ADMIN` | Administration : produits, catégories, commandes, utilisateurs, notifications | variable `ADMIN_PASSWORD` de `.env` |
 | `svc.commandes@marcheci.ci` | `ADMIN` technique | Appels internes Commandes → Catalogue (`adjust-stock`) | variable `SVC_COMMANDES_PASSWORD` de `.env` |
 | Compte client | `CLIENT` | Créé via `/inscription` ou `POST /api/utilisateurs/auth/register` | choisi à l'inscription |
+| Compte commerçant | `COMMERCANT` | Créé via `/inscription` (choix « Vendre mes produits ») ou promu par un ADMIN ; accès à `/commercant` | choisi à l'inscription |
 
 Pour une présentation, utilisez le fichier `.env` de démonstration fourni hors
 dépôt, ou remplacez les valeurs `CHANGE_ME` avant le premier démarrage.
@@ -153,9 +160,9 @@ Routes principales :
 
 | Service | Routes principales |
 | --- | --- |
-| Catalogue | `GET /api/catalogue/products`, `GET /api/catalogue/products/{id}`, `GET /api/catalogue/categories`; écritures ADMIN sur produits/catégories; ajustement interne du stock |
+| Catalogue | `GET /api/catalogue/products`, `GET /api/catalogue/products/{id}`, `GET /api/catalogue/categories`; `GET /api/catalogue/products/mine` (commerçant); écritures ADMIN ou COMMERCANT propriétaire; photos `POST/DELETE /api/catalogue/products/{id}/images`; ajustement interne du stock |
 | Commandes | `POST /api/commandes/orders`, historique et détail, transition ADMIN, annulation |
-| Utilisateurs | `POST /api/utilisateurs/auth/register`, `POST /api/utilisateurs/auth/login`, `GET/PUT /api/utilisateurs/users/me`, `GET /api/utilisateurs/users` ADMIN |
+| Utilisateurs | `POST /api/utilisateurs/auth/register` (`role` = `CLIENT` ou `COMMERCANT`), `POST /api/utilisateurs/auth/login`, `GET/PUT /api/utilisateurs/users/me`, `GET /api/utilisateurs/users` et `PATCH /api/utilisateurs/users/{id}/role` ADMIN |
 | Notifications | `GET /api/notifications/notifications` ADMIN; `POST /api/notifications/internal/replay-dlq` ADMIN |
 
 Chaque service expose `/health`. Commandes et Notifications retournent HTTP 503

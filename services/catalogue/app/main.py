@@ -3,9 +3,11 @@
 import logging
 import uuid
 import time
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
 from .logging_config import setup_logging
@@ -23,6 +25,12 @@ app = FastAPI(
     docs_url="/docs",
     openapi_url="/openapi.json",
 )
+
+# Photos produits : en production la gateway sert /media/ depuis le volume
+# partagé ; ce montage direct sert au développement local (proxy Vite).
+_media_root = Path(settings.media_root)
+_media_root.mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=_media_root), name="media")
 
 if settings.cors_origins_list:
     app.add_middleware(

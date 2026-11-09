@@ -6,8 +6,15 @@ interface AuthState {
   user: User | null
   loading: boolean
   isAdmin: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (data: { email: string; password: string; full_name: string; phone?: string }) => Promise<void>
+  isMerchant: boolean
+  login: (email: string, password: string) => Promise<User>
+  register: (data: {
+    email: string
+    password: string
+    full_name: string
+    phone?: string
+    role?: 'CLIENT' | 'COMMERCANT'
+  }) => Promise<void>
   logout: () => void
   refresh: () => Promise<void>
 }
@@ -43,9 +50,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(TOKEN_KEY, data.access_token)
     const me = await usersApi.me()
     setUser(me.data)
+    return me.data
   }, [])
 
-  const register = useCallback(async (payload: { email: string; password: string; full_name: string; phone?: string }) => {
+  const register = useCallback(async (payload: {
+    email: string
+    password: string
+    full_name: string
+    phone?: string
+    role?: 'CLIENT' | 'COMMERCANT'
+  }) => {
     await usersApi.register(payload)
     await login(payload.email, payload.password)
   }, [login])
@@ -58,7 +72,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, isAdmin: user?.role === 'ADMIN', login, register, logout, refresh }}
+      value={{
+        user,
+        loading,
+        isAdmin: user?.role === 'ADMIN',
+        isMerchant: user?.role === 'COMMERCANT',
+        login,
+        register,
+        logout,
+        refresh,
+      }}
     >
       {children}
     </AuthContext.Provider>

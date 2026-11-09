@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usersApi } from '../api/service'
 import { ErrorBanner, Field, SuccessBanner, inputClass, errMessage } from '../components/ui'
@@ -79,6 +80,23 @@ export default function Profile() {
           {busy ? 'Enregistrement…' : 'Enregistrer les modifications'}
         </button>
       </form>
+
+      {user.role === 'COMMERCANT' && (
+        <div className="card mt-4 flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="text-sm text-slate-600">
+            Votre espace commerçant vous permet d’ajouter vos produits et leurs photos.
+          </p>
+          <Link to="/commercant" className="button-primary">Mon espace commerçant</Link>
+        </div>
+      )}
+      {user.role === 'CLIENT' && (
+        <div className="card mt-4 p-4">
+          <p className="text-sm text-slate-600">
+            Vous voulez vendre vos produits sur MarchéCI ? Demandez à l’administration de passer
+            votre compte en commerçant : vous pourrez ensuite ajouter vos produits et leurs photos.
+          </p>
+        </div>
+      )}
 
       <div className="mt-6 flex justify-between">
         <span className="text-xs text-slate-400">

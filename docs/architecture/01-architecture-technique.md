@@ -34,7 +34,7 @@ démarrage complet en moins de deux minutes restent des objectifs à mesurer.
 |---|---|---|
 | **catalogue** | Produits, catégories, stock, recherche, filtres, images (URL), prix master | Ne connaît ni commandes ni clients |
 | **commandes** | Commandes, statuts, montants, lignes avec instantanés de prix et table outbox | Le panier reste dans le navigateur ; ne modifie jamais les tables Catalogue et ajuste le stock via son API |
-| **utilisateurs** | Comptes, mots de passe hachés, émission/validation JWT, rôles CLIENT, ADMIN | Ne connaît ni produits ni commandes |
+| **utilisateurs** | Comptes, mots de passe hachés, émission/validation JWT, rôles CLIENT, COMMERCANT, ADMIN | Ne connaît ni produits ni commandes |
 | **notifications** | Consommation `order.created`, historique des notifications, envoi simulé clairement marqué | Ne lit aucune autre base |
 | **gateway** | Routage, limitation des chemins exposés, timeouts, round-robin catalogue | Aucune logique métier |
 | **frontend** | SPA React/TS, panier utilisateur (localStorage), formulaires | Aucun prix inventé : tout vient des APIs |

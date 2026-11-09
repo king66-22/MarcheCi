@@ -47,7 +47,35 @@ def require_admin(payload: Annotated[dict, Depends(get_current_payload)]) -> dic
     return payload
 
 
+def require_merchant_or_admin(payload: Annotated[dict, Depends(get_current_payload)]) -> dict:
+    """Gestion du catalogue : commerçant propriétaire ou administrateur."""
+    role = payload.get("role")
+    if role not in ("COMMERCANT", "ADMIN"):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Espace commerçant requis (rôle COMMERCANT) ou autorisation administrateur",
+        )
+    return payload
+
+
+def assert_can_manage_product(payload: dict, product) -> None:
+    """Un commerçant ne peut gérer que ses propres produits ; un ADMIN gère tout."""
+    if payload.get("role") == "ADMIN":
+        return
+    try:
+        owner_id = int(payload.get("sub", ""))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Jeton invalide") from exc
+    if payload.get("role") == "COMMERCANT" and product.owner_id == owner_id:
+        return
+    raise HTTPException(
+        status.HTTP_403_FORBIDDEN,
+        "Vous ne pouvez gérer que les produits de votre boutique",
+    )
+
+
 # Jalon : réutilisation pour vérifier le rôle du compte système qui appelle les opérations
 # internes (décrément stock par le service Commandes). Le compte système a un rôle ADMIN.
 AdminPayloadDep = Annotated[dict, Depends(require_admin)]
+MerchantPayloadDep = Annotated[dict, Depends(require_merchant_or_admin)]
 DBDep = Annotated[Session, Depends(get_db)]

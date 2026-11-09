@@ -1,6 +1,6 @@
 import { Route, Routes } from 'react-router-dom'
 import { Header, Footer } from './components/Layout'
-import { RequireAdmin, RequireAuth } from './components/ui'
+import { RequireAdmin, RequireAuth, RequireMerchant } from './components/ui'
 import Home from './pages/Home'
 import Catalogue from './pages/Catalogue'
 import ProductDetail from './pages/ProductDetail'
@@ -12,6 +12,8 @@ import Checkout from './pages/Checkout'
 import OrderConfirmation from './pages/OrderConfirmation'
 import Orders from './pages/Orders'
 import Profile from './pages/Profile'
+import MerchantDashboard from './pages/merchant/Dashboard'
+import MerchantProducts from './pages/merchant/Products'
 import Dashboard from './pages/admin/Dashboard'
 import AdminProducts from './pages/admin/Products'
 import AdminCategories from './pages/admin/Categories'
@@ -40,6 +42,10 @@ export default function App() {
           <Route path="/commande/:id" element={<RequireAuth><OrderConfirmation /></RequireAuth>} />
           <Route path="/commandes" element={<RequireAuth><Orders /></RequireAuth>} />
           <Route path="/profil" element={<RequireAuth><Profile /></RequireAuth>} />
+
+          {/* Espace commerçant (rôle COMMERCANT) */}
+          <Route path="/commercant" element={<RequireMerchant><MerchantDashboard /></RequireMerchant>} />
+          <Route path="/commercant/produits" element={<RequireMerchant><MerchantProducts /></RequireMerchant>} />
 
           {/* Espace administration (rôle ADMIN only) */}
           <Route path="/admin" element={<RequireAdmin><Dashboard /></RequireAdmin>} />

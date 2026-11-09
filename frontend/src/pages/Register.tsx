@@ -6,7 +6,14 @@ import { ErrorBanner, Field, inputClass, errMessage } from '../components/ui'
 export default function Register() {
   const { register } = useAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '', confirm: '' })
+  const [form, setForm] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+    password: '',
+    confirm: '',
+    role: 'CLIENT' as 'CLIENT' | 'COMMERCANT',
+  })
   const [errors, setErrors] = useState<Record<string, string | null>>({})
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -29,8 +36,14 @@ export default function Register() {
     if (!validate()) return
     setBusy(true)
     try {
-      await register({ email: form.email.trim(), password: form.password, full_name: form.full_name.trim(), phone: form.phone.trim() || undefined })
-      navigate('/')
+      await register({
+        email: form.email.trim(),
+        password: form.password,
+        full_name: form.full_name.trim(),
+        phone: form.phone.trim() || undefined,
+        role: form.role,
+      })
+      navigate(form.role === 'COMMERCANT' ? '/commercant' : '/')
     } catch (err) {
       setError(errMessage(err, 'Inscription impossible. Réessayez.'))
     } finally {
@@ -59,6 +72,40 @@ export default function Register() {
           <Field label="Téléphone (optionnel, format ivoirien)" error={errors.phone ?? undefined}>
             <input className={inputClass} placeholder="07 xx xx xx xx" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </Field>
+
+          <fieldset>
+            <legend className="mb-2 block text-sm font-medium text-slate-700">Je crée un compte pour…</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm transition ${form.role === 'CLIENT' ? 'border-terracotta-500 bg-terracotta-50/60' : 'border-sable-200 bg-white hover:border-terracotta-300'}`}>
+                <input
+                  type="radio"
+                  name="role"
+                  value="CLIENT"
+                  checked={form.role === 'CLIENT'}
+                  onChange={() => setForm({ ...form, role: 'CLIENT' })}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="block font-semibold text-slate-800">Acheter</span>
+                  <span className="block text-xs text-slate-500">Compte client : panier et commandes.</span>
+                </span>
+              </label>
+              <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm transition ${form.role === 'COMMERCANT' ? 'border-terracotta-500 bg-terracotta-50/60' : 'border-sable-200 bg-white hover:border-terracotta-300'}`}>
+                <input
+                  type="radio"
+                  name="role"
+                  value="COMMERCANT"
+                  checked={form.role === 'COMMERCANT'}
+                  onChange={() => setForm({ ...form, role: 'COMMERCANT' })}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="block font-semibold text-slate-800">Vendre mes produits</span>
+                  <span className="block text-xs text-slate-500">Espace commerçant : produits et photos.</span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
           <Field label="Mot de passe" required error={errors.password ?? undefined}>
             <input type="password" className={inputClass} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
           </Field>

@@ -20,6 +20,10 @@ venv/
 *.sqlite
 *.sqlite3
 
+# ---- Photos produits en stockage local (hors volume Docker) ----
+media_data/
+media/
+
 # ---- Overrides locaux (pgAdmin, etc.) ----
 compose.pgadmin.yaml
 

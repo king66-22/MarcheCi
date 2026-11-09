@@ -25,11 +25,25 @@ Les champs et contraintes ci-dessous résument les modèles SQLAlchemy et les mi
 | `price_xof` | BigInteger | Montant entier en FCFA, non négatif selon le schéma API |
 | `category_id` | Integer | Référence locale à `categories.id`, nullable |
 | `stock` | Integer | Stock courant, entier non négatif selon le schéma API |
-| `image_url` | String(500) | URL facultative; aucun dépôt de fichier n’est implémenté |
-| `is_active` | Boolean | Vrai par défaut; faux après désactivation administrative |
+| `owner_id` | Integer | Identifiant du commerçant propriétaire (`utilisateurs.users.id`), nullable ; pas de FK inter-base |
+| `image_url` | String(500) | URL http(s) ou chemin `/media/…` de la photo de couverture |
+| `is_active` | Boolean | Vrai par défaut; faux après désactivation par le propriétaire ou l’administration |
 | `created_at`, `updated_at` | DateTime | Horodatages UTC |
 
-L’index composite `is_active, category_id` sert les listes publiques. Les produits sont triés du plus récent au plus ancien. Les filtres de texte, de catégorie et de disponibilité sont appliqués par Catalogue.
+L’index composite `is_active, category_id` sert les listes publiques ; `owner_id` est indexé pour l’espace commerçant. Les produits sont triés du plus récent au plus ancien. Les filtres de texte, de catégorie et de disponibilité sont appliqués par Catalogue.
+
+### `product_images`
+
+| Champ | Type | Règle |
+|---|---|---|
+| `id` | Integer | Clé primaire |
+| `product_id` | Integer | FK vers `products.id`, `ON DELETE CASCADE`, indexé |
+| `filename` | String(120) | Nom UUID du fichier dans `media_data/products` |
+| `url` | String(500) | Chemin public `/media/products/<fichier>` |
+| `position` | Integer | Ordre d’affichage ; la couverture est reprise dans `products.image_url` |
+| `created_at` | DateTime | Horodatage UTC |
+
+Les fichiers sont stockés sur le volume Docker `media_data` (écriture par Catalogue, lecture seule par la gateway). Le service vérifie le contenu avec Pillow, applique l’orientation EXIF, redimensionne le côté le plus long à 1 600 px et enregistre un JPEG. Aucun fichier binaire n’est stocké en base.
 
 ## 2. Utilisateurs (`marcheci_utilisateurs`)
 
@@ -42,11 +56,11 @@ L’index composite `is_active, category_id` sert les listes publiques. Les prod
 | `password_hash` | String(255) | Hachage Argon2; jamais retourné par l’API |
 | `full_name` | String(150) | Non nul |
 | `phone` | String(30) | Facultatif |
-| `role` | String(10) | `CLIENT` par défaut; comptes `ADMIN` créés au bootstrap |
+| `role` | String(10) | `CLIENT` ou `COMMERCANT` à l’inscription; comptes `ADMIN` créés au bootstrap |
 | `is_active` | Boolean | Vrai par défaut |
 | `created_at`, `updated_at` | DateTime | Horodatages UTC |
 
-Le code et les contrats exposent les rôles `CLIENT` et `ADMIN` uniquement. Il n’existe pas de rôle commerçant, de rattachement produit-commerçant ou d’espace de gestion autonome pour un vendeur.
+Le code expose les rôles `CLIENT`, `COMMERCANT` et `ADMIN`. Un visiteur peut créer un compte client ou commerçant ; l’ADMIN reste réservé au script d’amorçage. Un administrateur peut promouvoir un client en commerçant via `PATCH /users/{id}/role`. Le commerçant est identifié dans Catalogue par `products.owner_id` ; il ne peut gérer que ses propres produits.
 
 ## 3. Commandes (`marcheci_commandes`)
 

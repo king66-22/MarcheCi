@@ -31,6 +31,39 @@ def test_register_duplicate_email_409(client):
     assert resp.status_code == 409
 
 
+def test_register_merchant_role(client):
+    resp = client.post(
+        "/auth/register",
+        json={
+            "email": "boutique@example.ci",
+            "password": "MotDePasse123",
+            "full_name": "Boutique Adjamé",
+            "role": "COMMERCANT",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["role"] == "COMMERCANT"
+
+    login = client.post(
+        "/auth/login", json={"email": "boutique@example.ci", "password": "MotDePasse123"}
+    )
+    assert login.status_code == 200
+    assert login.json()["role"] == "COMMERCANT"
+
+
+def test_register_cannot_choose_admin(client):
+    resp = client.post(
+        "/auth/register",
+        json={
+            "email": "faux-admin@example.ci",
+            "password": "MotDePasse123",
+            "full_name": "Faux Admin",
+            "role": "ADMIN",
+        },
+    )
+    assert resp.status_code == 422
+
+
 def test_register_weak_password_422(client):
     for weak in ("abc12", "sanschiffres", "12345678"):
         resp = create_user_api(client, f"w{weak[:4]}@example.ci", password=weak)
@@ -158,3 +191,33 @@ def test_users_list_admin(client, logged_in, admin_logged):
     assert resp.status_code == 200
     emails = [row["email"] for row in resp.json()]
     assert "admin@marcheci.ci" in emails
+
+
+def test_admin_promotes_client_to_merchant(client, admin_logged):
+    create_user_api(client, "futur-vendeur@example.ci")
+    headers = {"Authorization": f"Bearer {admin_logged['access_token']}"}
+    users = client.get("/users", headers=headers).json()
+    target = next(row for row in users if row["email"] == "futur-vendeur@example.ci")
+
+    resp = client.patch(f"/users/{target['id']}/role", json={"role": "COMMERCANT"}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["role"] == "COMMERCANT"
+
+    login = client.post(
+        "/auth/login", json={"email": "futur-vendeur@example.ci", "password": "MotDePasse123"}
+    )
+    assert login.json()["role"] == "COMMERCANT"
+
+
+def test_admin_role_is_protected(client, admin_logged):
+    headers = {"Authorization": f"Bearer {admin_logged['access_token']}"}
+    users = client.get("/users", headers=headers).json()
+    admin = next(row for row in users if row["role"] == "ADMIN")
+    resp = client.patch(f"/users/{admin['id']}/role", json={"role": "CLIENT"}, headers=headers)
+    assert resp.status_code == 403
+
+
+def test_role_update_requires_admin(client, logged_in):
+    headers = {"Authorization": f"Bearer {logged_in['access_token']}"}
+    resp = client.patch("/users/1/role", json={"role": "COMMERCANT"}, headers=headers)
+    assert resp.status_code == 403

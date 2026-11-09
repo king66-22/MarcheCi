@@ -18,6 +18,8 @@ for (const [svc, port] of Object.entries(servicePorts)) {
     rewrite: (p: string) => p.replace(`/api/${svc}`, ''),
   }
 }
+// Photos produits en développement : le service catalogue expose /media/<fichier>.
+proxy['/media'] = { target: 'http://127.0.0.1:5211', changeOrigin: true }
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

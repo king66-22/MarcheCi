@@ -1,12 +1,15 @@
 """Fixtures pytest du catalogue : app FastAPI en mémoire (SQLite + fakeredis)."""
 
 import os
+import tempfile
 
 os.environ["JWT_SECRET"] = "test-secret"
 os.environ["JWT_ISSUER"] = "marcheci"
 os.environ["JWT_AUDIENCE"] = "marcheci"
 os.environ["REDIS_ENABLED"] = "false"  # activé précisément par la fixture « cache »
 os.environ["DATABASE_URL"] = "sqlite:///./catalogue_test.db"
+# Photos produits : dossier temporaire isolé du dépôt.
+os.environ["MEDIA_ROOT"] = tempfile.mkdtemp(prefix="marcheci-media-")
 
 import pytest
 from fakeredis import FakeStrictRedis

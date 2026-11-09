@@ -2,10 +2,15 @@
 
 import re
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 _PASSWORD_RE = re.compile(r"^(?=.*[A-Za-z])(?=.*\d).{8,128}$")
+
+# Rôles qu'un visiteur peut choisir à l'inscription. ADMIN reste réservé au
+# script d'amorçage (docker/bootstrap/init_admins.py).
+PublicRole = Literal["CLIENT", "COMMERCANT"]
 
 
 class RegisterRequest(BaseModel):
@@ -13,6 +18,10 @@ class RegisterRequest(BaseModel):
     password: str = Field(description="Minimum 8 caractères, lettres + chiffres")
     full_name: str = Field(min_length=2, max_length=150)
     phone: str | None = Field(default=None, max_length=30)
+    role: PublicRole = Field(
+        default="CLIENT",
+        description="CLIENT pour acheter, COMMERCANT pour vendre et gérer ses produits",
+    )
 
     @field_validator("password")
     @classmethod
@@ -63,3 +72,9 @@ class ProfileUpdate(BaseModel):
 
 class UserAdminRow(UserRead):
     is_active: bool
+
+
+class RoleUpdate(BaseModel):
+    """Promotion / rétrogradation d'un compte par un administrateur."""
+
+    role: PublicRole

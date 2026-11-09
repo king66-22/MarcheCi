@@ -1,6 +1,7 @@
 import { api } from './client'
 import type {
-  Product, ProductPage, Category, Order, OrderPage, OrderStatus, User, TokenResponse, NotificationRow,
+  Product, ProductImage, ProductPage, Category, Order, OrderPage, OrderStatus, User, TokenResponse,
+  NotificationRow, Role,
 } from './types'
 
 export const catalogueApi = {
@@ -13,7 +14,11 @@ export const catalogueApi = {
   listCategories() {
     return api.get<Category[]>('/catalogue/categories')
   },
-  // ADMIN
+  // Espace commerçant : produits possédés (actifs et désactivés)
+  mine() {
+    return api.get<ProductPage>('/catalogue/products/mine', { params: { page_size: 100 } })
+  },
+  // Gestion (ADMIN ou COMMERCANT propriétaire)
   createProduct(data: Record<string, unknown>) {
     return api.post<Product>('/catalogue/products', data)
   },
@@ -22,6 +27,23 @@ export const catalogueApi = {
   },
   deleteProduct(id: number) {
     return api.delete<Product>(`/catalogue/products/${id}`)
+  },
+  // Photos produits
+  uploadProductImage(productId: number, file: File, onProgress?: (percent: number) => void) {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post<ProductImage>(`/catalogue/products/${productId}/images`, form, {
+      onUploadProgress: (event) => {
+        if (!onProgress || !event.total) return
+        onProgress(Math.round((event.loaded / event.total) * 100))
+      },
+    })
+  },
+  deleteProductImage(productId: number, imageId: number) {
+    return api.delete<ProductImage>(`/catalogue/products/${productId}/images/${imageId}`)
+  },
+  setProductCover(productId: number, imageId: number) {
+    return api.post<ProductImage>(`/catalogue/products/${productId}/images/${imageId}/cover`)
   },
   adjustStock(id: number, delta: number) {
     return api.post<{ product_id: number; stock_after: number }>(
@@ -38,7 +60,13 @@ export const catalogueApi = {
 }
 
 export const usersApi = {
-  register(data: { email: string; password: string; full_name: string; phone?: string }) {
+  register(data: {
+    email: string
+    password: string
+    full_name: string
+    phone?: string
+    role?: 'CLIENT' | 'COMMERCANT'
+  }) {
     return api.post<User>('/utilisateurs/auth/register', data)
   },
   login(email: string, password: string) {
@@ -52,6 +80,9 @@ export const usersApi = {
   },
   listAll(page = 1) {
     return api.get<User[]>('/utilisateurs/users', { params: { page } })
+  },
+  updateRole(id: number, role: Exclude<Role, 'ADMIN'>) {
+    return api.patch<User>(`/utilisateurs/users/${id}/role`, { role })
   },
 }
 

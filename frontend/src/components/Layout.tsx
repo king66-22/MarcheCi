@@ -22,7 +22,7 @@ function Brand() {
 }
 
 export function Header() {
-  const { user, isAdmin, logout } = useAuth()
+  const { user, isAdmin, isMerchant, logout } = useAuth()
   const { count } = useCart()
   const navigate = useNavigate()
   const [toast, setToast] = useState<string | null>(null)
@@ -52,6 +52,7 @@ export function Header() {
         <div className="user-menu">
           <Link to="/profil" onClick={() => setUserMenuOpen(false)}>Mon profil</Link>
           <Link to="/commandes" onClick={() => setUserMenuOpen(false)}>Mes commandes</Link>
+          {isMerchant && <Link to="/commercant" onClick={() => setUserMenuOpen(false)}>Mon espace commerçant</Link>}
           {isAdmin && <Link to="/admin" onClick={() => setUserMenuOpen(false)}>Administration</Link>}
           <button onClick={() => {
             logout()
@@ -96,6 +97,7 @@ export function Header() {
             <NavLink to="/catalogue" className={linkClass}>Le marché</NavLink>
             <NavLink to="/categories" className={linkClass}>Catégories</NavLink>
             {user && <NavLink to="/commandes" className={linkClass}>Mes commandes</NavLink>}
+            {isMerchant && <NavLink to="/commercant" className={linkClass}>Mon espace commerçant</NavLink>}
             {isAdmin && <NavLink to="/admin" className={linkClass}>Administration</NavLink>}
             <span className="ml-auto hidden text-xs font-medium text-slate-400 md:inline">Les étals d’Adjamé, sélectionnés par la coopérative</span>
           </div>
@@ -111,6 +113,7 @@ export function Header() {
             <NavLink to="/categories" className={linkClass} onClick={closeMenu}>Catégories</NavLink>
             {user && <NavLink to="/commandes" className={linkClass} onClick={closeMenu}>Mes commandes</NavLink>}
             {user && <NavLink to="/profil" className={linkClass} onClick={closeMenu}>Mon profil</NavLink>}
+            {isMerchant && <NavLink to="/commercant" className={linkClass} onClick={closeMenu}>Mon espace commerçant</NavLink>}
             {isAdmin && <NavLink to="/admin" className={linkClass} onClick={closeMenu}>Administration</NavLink>}
             {!user && <NavLink to="/connexion" className={linkClass} onClick={closeMenu}>Connexion</NavLink>}
             {!user && <NavLink to="/inscription" className={linkClass} onClick={closeMenu}>Créer un compte</NavLink>}

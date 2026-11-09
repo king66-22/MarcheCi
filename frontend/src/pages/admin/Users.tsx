@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { usersApi } from '../../api/service'
 import type { User } from '../../api/types'
-import { ErrorBanner, Spinner, errMessage } from '../../components/ui'
+import { ErrorBanner, Spinner, Toast, errMessage } from '../../components/ui'
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<User[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
   const load = useCallback(async (page: number) => {
     try {
@@ -17,6 +18,16 @@ export default function AdminUsers() {
     }
   }, [])
 
+  const changeRole = (user: User, role: 'CLIENT' | 'COMMERCANT') => {
+    void usersApi
+      .updateRole(user.id, role)
+      .then(() => {
+        setToast(`${user.full_name} est maintenant ${role === 'COMMERCANT' ? 'commerçant' : 'client'}`)
+        return load(1)
+      })
+      .catch((e) => setToast(errMessage(e, 'Modification du rôle impossible')))
+  }
+
   // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { void load(1) }, [load])
 
@@ -27,10 +38,10 @@ export default function AdminUsers() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-extrabold text-marche-800">Comptes clients</h1>
+      <h1 className="text-2xl font-extrabold text-marche-800">Comptes et rôles</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Les rôles sont gérés côté service utilisateurs (base dédiée) ; cette vue est en lecture seule
-        — aucune modification de rôle ne se fait depuis le navigateur, uniquement via l'API et la base.
+        Un client peut être promu commerçant pour ouvrir son espace de vente. Le rôle ADMIN
+        reste réservé au script d'amorçage et n'est pas modifiable depuis cette page.
       </p>
 
       <div className="card mt-6 overflow-x-auto">
@@ -42,6 +53,7 @@ export default function AdminUsers() {
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Rôle</th>
               <th className="px-4 py-3">État</th>
+              <th className="px-4 py-3 text-right">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -60,14 +72,36 @@ export default function AdminUsers() {
                     ? <span className="text-xs font-semibold text-red-500">désactivé</span>
                     : <span className="text-xs font-semibold text-green-700">actif</span>}
                 </td>
+                <td className="px-4 py-3 text-right">
+                  {u.role === 'ADMIN' ? (
+                    <span className="text-xs text-slate-400">protégé</span>
+                  ) : u.role === 'COMMERCANT' ? (
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-slate-600 hover:underline"
+                      onClick={() => changeRole(u, 'CLIENT')}
+                    >
+                      Repasser client
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-terracotta-600 hover:underline"
+                      onClick={() => changeRole(u, 'COMMERCANT')}
+                    >
+                      Passer commerçant
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
             {users.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Aucun compte.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Aucun compte.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
     </div>
   )
 }

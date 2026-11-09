@@ -15,7 +15,10 @@ WORKDIR /app
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
-RUN chown -R appuser:appgroup /app
+# Volume partagé des photos : le dossier doit appartenir à appuser pour que le
+# volume Docker nommé (media_data) soit inscriptible dès sa première création.
+RUN mkdir -p /data/media/products \
+    && chown -R appuser:appgroup /app /data
 
 USER appuser
 EXPOSE 8000

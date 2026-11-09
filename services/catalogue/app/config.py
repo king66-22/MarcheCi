@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     jwt_issuer: str = "marcheci"
     jwt_audience: str = "marcheci"
 
+    # Photos produits (volume partagé media_data, servi par la gateway sous /media/)
+    media_root: str = "./media_data"
+    media_max_upload_mb: int = 8
+    media_max_dimension_px: int = 1600  # redimensionnement : côté le plus long
+    media_max_images_per_product: int = 10
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

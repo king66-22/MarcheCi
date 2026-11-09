@@ -1,22 +1,28 @@
-"""Endpoints produits + catégories + opérations internes stock."""
+"""Endpoints produits + catégories + photos + opérations internes stock."""
 
+import io
 import json
 import logging
+import uuid
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
+from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..cache import ProductCache, get_product_cache
+from ..config import get_settings
 from ..database import get_db
-from ..deps import AdminPayloadDep, DBDep
-from ..models import Category, Product
+from ..deps import AdminPayloadDep, DBDep, MerchantPayloadDep, assert_can_manage_product
+from ..models import Category, Product, ProductImage
 from ..schemas import (
     CategoryCreate,
     CategoryRead,
     CategoryWithCount,
     ProductCreate,
     ProductDetail,
+    ProductImageRead,
     ProductPage,
     ProductRead,
     ProductUpdate,
@@ -27,9 +33,53 @@ from ..schemas import (
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+_ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+
 
 def _page_to_json(page: ProductPage) -> str:
     return page.model_dump_json()
+
+
+def _owner_id_for(payload: dict) -> int | None:
+    """Un commerçant crée toujours des produits à son nom ; l'ADMIN reste neutre."""
+    if payload.get("role") != "COMMERCANT":
+        return None
+    try:
+        return int(payload["sub"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Jeton invalide") from exc
+
+
+def _media_products_dir() -> Path:
+    directory = Path(get_settings().media_root) / "products"
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
+def _prepare_image(raw: bytes, max_dimension: int) -> Image.Image:
+    """Vérifie, redresse et redimensionne une photo avant stockage JPEG."""
+    try:
+        with Image.open(io.BytesIO(raw)) as probe:
+            probe.verify()
+        image = Image.open(io.BytesIO(raw))
+        image = ImageOps.exif_transpose(image)
+        image.load()
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Fichier image illisible ou corrompu (JPEG, PNG ou WebP attendu)",
+        ) from exc
+
+    if max(image.size) > max_dimension:
+        image.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+
+    # JPEG ne gère pas la transparence : aplatir sur fond blanc.
+    if image.mode in ("RGBA", "LA", "P"):
+        rgba = image.convert("RGBA")
+        background = Image.new("RGB", rgba.size, (255, 255, 255))
+        background.paste(rgba, mask=rgba.getchannel("A"))
+        return background
+    return image.convert("RGB")
 
 
 def product_to_detail(db: Session, product: Product) -> ProductDetail:
@@ -127,6 +177,34 @@ def list_products(
     return result
 
 
+@router.get("/products/mine", response_model=ProductPage)
+def list_my_products(
+    payload: MerchantPayloadDep,
+    db: DBDep,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+):
+    """Produits du commerçant connecté, y compris désactivés (gestion de boutique)."""
+    try:
+        owner_id = int(payload["sub"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Jeton invalide") from exc
+
+    stmt = (
+        select(Product)
+        .where(Product.owner_id == owner_id)
+        .order_by(Product.created_at.desc(), Product.id.desc())
+    )
+    total = db.scalar(select(func.count(Product.id)).where(Product.owner_id == owner_id)) or 0
+    items = db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)).all()
+    return ProductPage(
+        items=[ProductRead.model_validate(p) for p in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
 @router.get("/products/{product_id}", response_model=ProductDetail)
 def get_product(product_id: int, db: DBDep):
     product = db.get(Product, product_id)
@@ -152,26 +230,29 @@ def list_categories(db: DBDep):
     ]
 
 
-# ------------------------- Administration (ADMIN) -------------------------
+# ------------- Gestion des produits (ADMIN ou COMMERCANT propriétaire) -------------
 
 
 @router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
 def create_product(
     data: ProductCreate,
     db: DBDep,
-    _admin: AdminPayloadDep,
+    payload: MerchantPayloadDep,
     cache: ProductCache = Depends(get_product_cache),
 ):
     if db.scalar(select(Product.id).where(Product.slug == data.slug)):
         raise HTTPException(status.HTTP_409_CONFLICT, "Un produit avec ce slug existe déjà")
     if data.category_id is not None and db.get(Category, data.category_id) is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Catégorie inconnue")
-    product = Product(**data.model_dump())
+    product = Product(**data.model_dump(), owner_id=_owner_id_for(payload))
     db.add(product)
     db.commit()
     db.refresh(product)
     cache.invalidate_product_keys()
-    logger.info("event", extra={"event": "product_created", "instance": product.id})
+    logger.info(
+        "event",
+        extra={"event": "product_created", "instance": product.id, "owner_id": product.owner_id},
+    )
     return product
 
 
@@ -180,17 +261,18 @@ def update_product(
     product_id: int,
     data: ProductUpdate,
     db: DBDep,
-    _admin: AdminPayloadDep,
+    payload: MerchantPayloadDep,
     cache: ProductCache = Depends(get_product_cache),
 ):
     product = db.get(Product, product_id)
     if product is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Produit introuvable")
-    payload = data.model_dump(exclude_unset=True)
-    if "category_id" in payload and payload["category_id"] is not None:
-        if db.get(Category, payload["category_id"]) is None:
+    assert_can_manage_product(payload, product)
+    changes = data.model_dump(exclude_unset=True)
+    if "category_id" in changes and changes["category_id"] is not None:
+        if db.get(Category, changes["category_id"]) is None:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Catégorie inconnue")
-    for field, value in payload.items():
+    for field, value in changes.items():
         setattr(product, field, value)
     db.commit()
     db.refresh(product)
@@ -203,13 +285,14 @@ def update_product(
 def delete_product(
     product_id: int,
     db: DBDep,
-    _admin: AdminPayloadDep,
+    payload: MerchantPayloadDep,
     cache: ProductCache = Depends(get_product_cache),
 ):
     """Suppression = désactivation (soft-delete) pour préserver l'historique commandes."""
     product = db.get(Product, product_id)
     if product is None or not product.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Produit introuvable")
+    assert_can_manage_product(payload, product)
     product.is_active = False
     product.stock = 0
     db.commit()
@@ -217,6 +300,154 @@ def delete_product(
     cache.invalidate_product_keys()
     logger.info("event", extra={"event": "product_deactivated", "instance": product.id})
     return product
+
+
+# ------------------------- Photos produits (galerie) -------------------------
+
+
+@router.post(
+    "/products/{product_id}/images",
+    response_model=ProductImageRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_product_image(
+    product_id: int,
+    db: DBDep,
+    payload: MerchantPayloadDep,
+    file: UploadFile = File(..., description="Photo JPEG, PNG ou WebP"),
+    cache: ProductCache = Depends(get_product_cache),
+):
+    """Ajoute une photo : validation du contenu, redressement EXIF, redimensionnement JPEG."""
+    settings = get_settings()
+    product = db.get(Product, product_id)
+    if product is None or not product.is_active:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Produit introuvable")
+    assert_can_manage_product(payload, product)
+
+    count = db.scalar(
+        select(func.count(ProductImage.id)).where(ProductImage.product_id == product_id)
+    ) or 0
+    if count >= settings.media_max_images_per_product:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Maximum {settings.media_max_images_per_product} photos par produit",
+        )
+    if file.content_type not in _ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Format non pris en charge : utilisez une photo JPEG, PNG ou WebP",
+        )
+
+    max_bytes = settings.media_max_upload_mb * 1024 * 1024
+    raw = await file.read(max_bytes + 1)
+    if not raw:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Fichier vide")
+    if len(raw) > max_bytes:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"Photo trop volumineuse (maximum {settings.media_max_upload_mb} Mo)",
+        )
+
+    prepared = _prepare_image(raw, settings.media_max_dimension_px)
+    filename = f"{uuid.uuid4().hex}.jpg"
+    destination = _media_products_dir() / filename
+    try:
+        prepared.save(destination, format="JPEG", quality=85, optimize=True)
+    except OSError as exc:
+        logger.exception("Écriture photo impossible")
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, "Enregistrement de la photo impossible"
+        ) from exc
+
+    max_position = db.scalar(
+        select(func.max(ProductImage.position)).where(ProductImage.product_id == product_id)
+    )
+    image = ProductImage(
+        product_id=product_id,
+        filename=filename,
+        url=f"/media/products/{filename}",
+        position=0 if max_position is None else max_position + 1,
+    )
+    db.add(image)
+    if not product.image_url:
+        product.image_url = image.url
+    db.commit()
+    db.refresh(image)
+    cache.invalidate_product_keys()
+    logger.info(
+        "event",
+        extra={"event": "product_image_uploaded", "product_id": product_id, "image_id": image.id},
+    )
+    return ProductImageRead.model_validate(image)
+
+
+@router.delete("/products/{product_id}/images/{image_id}", response_model=ProductImageRead)
+def delete_product_image(
+    product_id: int,
+    image_id: int,
+    db: DBDep,
+    payload: MerchantPayloadDep,
+    cache: ProductCache = Depends(get_product_cache),
+):
+    """Retire une photo et supprime le fichier ; la couverture passe à la suivante."""
+    settings = get_settings()
+    product = db.get(Product, product_id)
+    if product is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Produit introuvable")
+    assert_can_manage_product(payload, product)
+    image = db.get(ProductImage, image_id)
+    if image is None or image.product_id != product_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Photo introuvable")
+
+    response = ProductImageRead.model_validate(image)
+    filename = image.filename
+    was_cover = product.image_url == image.url
+    db.delete(image)
+    db.flush()
+    if was_cover:
+        following = db.scalars(
+            select(ProductImage)
+            .where(ProductImage.product_id == product_id)
+            .order_by(ProductImage.position, ProductImage.id)
+            .limit(1)
+        ).first()
+        product.image_url = following.url if following is not None else None
+    db.commit()
+    cache.invalidate_product_keys()
+
+    try:
+        (Path(settings.media_root) / "products" / filename).unlink()
+    except FileNotFoundError:
+        pass
+    except OSError:
+        logger.warning("Fichier photo déjà absent : %s", filename)
+    logger.info(
+        "event",
+        extra={"event": "product_image_deleted", "product_id": product_id, "image_id": image_id},
+    )
+    return response
+
+
+@router.post("/products/{product_id}/images/{image_id}/cover", response_model=ProductImageRead)
+def set_product_cover_image(
+    product_id: int,
+    image_id: int,
+    db: DBDep,
+    payload: MerchantPayloadDep,
+    cache: ProductCache = Depends(get_product_cache),
+):
+    """Définit la photo affichée dans le catalogue (image_url du produit)."""
+    product = db.get(Product, product_id)
+    if product is None or not product.is_active:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Produit introuvable")
+    assert_can_manage_product(payload, product)
+    image = db.get(ProductImage, image_id)
+    if image is None or image.product_id != product_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Photo introuvable")
+    product.image_url = image.url
+    db.commit()
+    cache.invalidate_product_keys()
+    return ProductImageRead.model_validate(image)
 
 
 @router.post("/categories", response_model=CategoryRead, status_code=status.HTTP_201_CREATED)

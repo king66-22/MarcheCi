@@ -21,6 +21,18 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
+/** Espace commerçant : réservé au rôle COMMERCANT (l'ADMIN garde son espace dédié). */
+export function RequireMerchant({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth()
+  const location = useLocation()
+  if (loading) return <Spinner label="Chargement de votre espace…" />
+  if (!user) return <Navigate to="/connexion" state={{ from: location.pathname }} replace />
+  if (user.role !== 'COMMERCANT') {
+    return <Navigate to={user.role === 'ADMIN' ? '/admin' : '/'} replace />
+  }
+  return <>{children}</>
+}
+
 // ---------- basiques ----------
 
 export function Spinner({ label }: { label?: string }) {
