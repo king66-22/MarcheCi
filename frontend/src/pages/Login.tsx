@@ -29,10 +29,16 @@ export default function Login() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-14">
-      <div className="card p-8">
-        <h1 className="text-2xl font-extrabold text-marche-800">Connexion</h1>
-        <p className="mt-1 text-sm text-slate-500">Accédez à vos commandes et finalisez vos achats.</p>
+    <div className="page-width max-w-5xl py-8 sm:py-12">
+      <div className="auth-shell">
+        <aside className="auth-aside">
+          <Link to="/" className="brand text-white"><span className="brand-mark bg-white/15"><span className="text-lg">M</span></span><span className="brand-name text-white">Marché<span>CI</span></span></Link>
+          <div><h2>Vos achats, au rythme du marché.</h2><p>Retrouvez vos commandes et préparez votre prochain panier auprès de la coopérative d’Adjamé.</p></div>
+        </aside>
+        <div className="auth-form">
+        <p className="eyebrow">Heureux de vous retrouver</p>
+        <h1 className="font-display mt-2 text-3xl font-bold text-marche-900">Connexion</h1>
+        <p className="mt-2 text-sm text-slate-500">Accédez à vos commandes et poursuivez vos achats.</p>
         <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4" noValidate>
           <Field label="Adresse email" required>
             <input
@@ -63,6 +69,7 @@ export default function Login() {
           Pas encore de compte ?{' '}
           <Link to="/inscription" className="font-semibold text-terracotta-600 hover:underline">Inscrivez-vous</Link>
         </p>
+        </div>
       </div>
     </div>
   )

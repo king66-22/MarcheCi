@@ -21,15 +21,28 @@ x-app-peers: &front-back
 services:
   # ---------------- Infrastructure (réseau BACK uniquement) ----------------
   postgres:
-    image: postgres:16-alpine
-    env_file: .env
+    image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
     environment:
       POSTGRES_USER: ${POSTGRES_OWNER_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_owner_password
+      POSTGRES_OWNER_USER: ${POSTGRES_OWNER_USER}
+      PGCAT_USER: ${PGCAT_USER}
+      PGCAT_DB: ${PGCAT_DB}
+      PGCAT_PASSWORD_FILE: /run/secrets/catalogue_db_password
+      PGCMD_USER: ${PGCMD_USER}
+      PGCMD_DB: ${PGCMD_DB}
+      PGCMD_PASSWORD_FILE: /run/secrets/commandes_db_password
+      PGUSR_USER: ${PGUSR_USER}
+      PGUSR_DB: ${PGUSR_DB}
+      PGUSR_PASSWORD_FILE: /run/secrets/utilisateurs_db_password
+      PGNTF_USER: ${PGNTF_USER}
+      PGNTF_DB: ${PGNTF_DB}
+      PGNTF_PASSWORD_FILE: /run/secrets/notifications_db_password
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/initdb:/docker-entrypoint-initdb.d:ro
     networks: [back]
+    secrets: [postgres_owner_password, catalogue_db_password, commandes_db_password, utilisateurs_db_password, notifications_db_password]
     mem_limit: 384m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_OWNER_USER}"]
@@ -39,7 +52,7 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7.4-alpine
+    image: redis:7.4-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
     command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
     networks: [back]
     mem_limit: 160m
@@ -51,19 +64,22 @@ services:
     restart: unless-stopped
 
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
+    image: rabbitmq:3.13-management-alpine@sha256:606d8c0d6b3c18d1da9afc53bc7cdb2a8d5486df91b5a9830e9e07626c9ae281
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["export RABBITMQ_DEFAULT_PASS=\"$(cat /run/secrets/rabbitmq_password)\"; exec /usr/local/bin/docker-entrypoint.sh rabbitmq-server"]
+    secrets: [rabbitmq_password]
     volumes:
       - rabbitdata:/var/lib/rabbitmq
     networks: [back]
     mem_limit: 256m
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 10
+      start_period: 30s
     restart: unless-stopped
 
   # ---------------- Migrations one-shot (une par SERVICE, pas par réplique) ----------------
@@ -73,11 +89,12 @@ services:
     command: ["python", "-m", "alembic", "upgrade", "head"]
     environment: &env-catalogue
       ENVIRONMENT: production
-      DATABASE_URL: postgresql+psycopg2://${PGCAT_USER}:${PGCAT_PASSWORD}@postgres:5432/${PGCAT_DB}
+      DATABASE_URL_FILE: /run/secrets/catalogue_database_url
       REDIS_URL: redis://redis:6379/0
       REDIS_ENABLED: "true"
       PRODUCTS_CACHE_TTL_SECONDS: "60"
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+    secrets: [catalogue_database_url, jwt_secret]
     networks: [back]
     depends_on:
       postgres: { condition: service_healthy }
@@ -91,13 +108,14 @@ services:
     command: ["python", "-m", "alembic", "upgrade", "head"]
     environment: &env-utilisateurs
       ENVIRONMENT: production
-      DATABASE_URL: postgresql+psycopg2://${PGUSR_USER}:${PGUSR_PASSWORD}@postgres:5432/${PGUSR_DB}
+      DATABASE_URL_FILE: /run/secrets/utilisateurs_database_url
       REDIS_URL: redis://redis:6379/1
       REDIS_ENABLED: "true"
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
       JWT_EXPIRES_MINUTES: "60"
       SYSTEM_EMAIL: ${SVC_COMMANDES_EMAIL}
     networks: [back]
+    secrets: [utilisateurs_database_url, jwt_secret]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -110,18 +128,21 @@ services:
     command: ["python", "-m", "alembic", "upgrade", "head"]
     environment: &env-commandes
       ENVIRONMENT: production
-      DATABASE_URL: postgresql+psycopg2://${PGCMD_USER}:${PGCMD_PASSWORD}@postgres:5432/${PGCMD_DB}
+      DATABASE_URL_FILE: /run/secrets/commandes_database_url
       CATALOGUE_URL: http://catalogue:8000
       UTILISATEURS_URL: http://utilisateurs:8000
       EVENTS_ENABLED: "true"
+      CONSUMER_MAX_RETRIES: "3"
+      CONSUMER_RETRY_BACKOFF_SECONDS: "2"
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
       RABBITMQ_USER: ${RABBITMQ_USER}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
+      RABBITMQ_PASSWORD_FILE: /run/secrets/rabbitmq_password
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
       SVC_COMMANDES_EMAIL: ${SVC_COMMANDES_EMAIL}
-      SVC_COMMANDES_PASSWORD: ${SVC_COMMANDES_PASSWORD}
+      SVC_COMMANDES_PASSWORD_FILE: /run/secrets/svc_commandes_password
     networks: [back]
+    secrets: [commandes_database_url, rabbitmq_password, jwt_secret, svc_commandes_password]
     depends_on:
       postgres: { condition: service_healthy }
     restart: "no"
@@ -133,14 +154,17 @@ services:
     command: ["python", "-m", "alembic", "upgrade", "head"]
     environment: &env-notifications
       ENVIRONMENT: production
-      DATABASE_URL: postgresql+psycopg2://${PGNTF_USER}:${PGNTF_PASSWORD}@postgres:5432/${PGNTF_DB}
+      DATABASE_URL_FILE: /run/secrets/notifications_database_url
       EVENTS_ENABLED: "true"
+      CONSUMER_MAX_RETRIES: "3"
+      CONSUMER_RETRY_BACKOFF_SECONDS: "2"
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
       RABBITMQ_USER: ${RABBITMQ_USER}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
+      RABBITMQ_PASSWORD_FILE: /run/secrets/rabbitmq_password
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
     networks: [back]
+    secrets: [notifications_database_url, rabbitmq_password, jwt_secret]
     depends_on:
       postgres: { condition: service_healthy }
     restart: "no"
@@ -153,12 +177,13 @@ services:
     environment:
       <<: *env-utilisateurs
       ADMIN_EMAIL: ${ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_PASSWORD_FILE: /run/secrets/admin_password
       SVC_COMMANDES_EMAIL: ${SVC_COMMANDES_EMAIL}
-      SVC_COMMANDES_PASSWORD: ${SVC_COMMANDES_PASSWORD}
+      SVC_COMMANDES_PASSWORD_FILE: /run/secrets/svc_commandes_password
     volumes:
       - ./docker/bootstrap:/scripts:ro
     networks: [back]
+    secrets: [admin_password, svc_commandes_password, utilisateurs_database_url, jwt_secret]
     depends_on:
       migrate-utilisateurs: { condition: service_completed_successfully }
     restart: "no"
@@ -168,6 +193,7 @@ services:
   catalogue:
     image: marcheci/catalogue
     environment: *env-catalogue
+    secrets: [catalogue_database_url, jwt_secret]
     <<: *front-back
     depends_on:
       migrate-catalogue: { condition: service_completed_successfully }
@@ -180,19 +206,21 @@ services:
   commandes:
     image: marcheci/commandes
     environment: *env-commandes
+    secrets: [commandes_database_url, rabbitmq_password, jwt_secret, svc_commandes_password]
     <<: *front-back
     depends_on:
       migrate-commandes: { condition: service_completed_successfully }
       bootstrap: { condition: service_completed_successfully }
       rabbitmq: { condition: service_healthy }
-      catalogue: { condition: service_started }
-      utilisateurs: { condition: service_started }
+      catalogue: { condition: service_healthy }
+      utilisateurs: { condition: service_healthy }
     restart: unless-stopped
     mem_limit: 224m
 
   utilisateurs:
     image: marcheci/utilisateurs
     environment: *env-utilisateurs
+    secrets: [utilisateurs_database_url, jwt_secret]
     <<: *front-back
     depends_on:
       bootstrap: { condition: service_completed_successfully }
@@ -202,10 +230,12 @@ services:
   notifications:
     image: marcheci/notifications
     environment: *env-notifications
+    secrets: [notifications_database_url, rabbitmq_password, jwt_secret]
     <<: *front-back
     depends_on:
       migrate-notifications: { condition: service_completed_successfully }
       rabbitmq: { condition: service_healthy }
+      postgres: { condition: service_healthy }
     restart: unless-stopped
     mem_limit: 224m
 
@@ -215,13 +245,13 @@ services:
       context: .
       dockerfile: docker/gateway/Dockerfile
     ports:
-      - "${GATEWAY_PORT:-80}:80"
+      - "${GATEWAY_PORT:-80}:8080"
     networks: [front]
     depends_on:
-      catalogue: { condition: service_started }
-      commandes: { condition: service_started }
-      utilisateurs: { condition: service_started }
-      notifications: { condition: service_started }
+      catalogue: { condition: service_healthy }
+      commandes: { condition: service_healthy }
+      utilisateurs: { condition: service_healthy }
+      notifications: { condition: service_healthy }
     restart: unless-stopped
     mem_limit: 64m
 
@@ -234,3 +264,31 @@ networks:
 volumes:
   pgdata:
   rabbitdata:
+
+secrets:
+  postgres_owner_password:
+    file: ./secrets/postgres_owner_password.secret
+  catalogue_db_password:
+    file: ./secrets/catalogue_db_password.secret
+  commandes_db_password:
+    file: ./secrets/commandes_db_password.secret
+  utilisateurs_db_password:
+    file: ./secrets/utilisateurs_db_password.secret
+  notifications_db_password:
+    file: ./secrets/notifications_db_password.secret
+  catalogue_database_url:
+    file: ./secrets/catalogue_database_url.secret
+  commandes_database_url:
+    file: ./secrets/commandes_database_url.secret
+  utilisateurs_database_url:
+    file: ./secrets/utilisateurs_database_url.secret
+  notifications_database_url:
+    file: ./secrets/notifications_database_url.secret
+  jwt_secret:
+    file: ./secrets/jwt_secret.secret
+  rabbitmq_password:
+    file: ./secrets/rabbitmq_password.secret
+  svc_commandes_password:
+    file: ./secrets/svc_commandes_password.secret
+  admin_password:
+    file: ./secrets/admin_password.secret

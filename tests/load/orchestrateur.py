@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 REPORTS = ROOT / "reports"
 TESTS = ROOT / "tests" / "load"
 
-K6_IMAGE = "grafana/k6:1.0.0"
+K6_IMAGE = "grafana/k6:1.0.0@sha256:f21270290d702cbf0a7d6ba5d7ed100b63bcb233b558b885ed787547b3488279"
 BASE = "http://host.docker.internal"
 
 

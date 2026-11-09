@@ -28,6 +28,8 @@ class OrderEventPublisher:
         queue: str,
         dlq: str,
         timeout: float = 3.0,
+        max_retries: int = 3,
+        retry_backoff_seconds: float = 2.0,
     ):
         self.host = host
         self.port = port
@@ -37,6 +39,8 @@ class OrderEventPublisher:
         self.queue = queue
         self.dlq = dlq
         self.timeout = timeout
+        self.max_retries = max_retries
+        self.retry_backoff_seconds = retry_backoff_seconds
         self.enabled = True
 
     def _connect(self):
@@ -59,6 +63,16 @@ class OrderEventPublisher:
         channel.queue_declare(queue=self.queue, durable=True, arguments=args)
         channel.queue_bind(queue=self.queue, exchange=self.exchange, routing_key=self.queue)
         channel.queue_bind(queue=self.dlq, exchange=self.exchange, routing_key=self.dlq)
+        for attempt in range(1, self.max_retries + 1):
+            channel.queue_declare(
+                queue=f"{self.queue}.retry.{attempt}",
+                durable=True,
+                arguments={
+                    "x-message-ttl": int(self.retry_backoff_seconds * (2 ** (attempt - 1)) * 1000),
+                    "x-dead-letter-exchange": self.exchange,
+                    "x-dead-letter-routing-key": self.queue,
+                },
+            )
 
     def publish_order_created(self, event: dict[str, Any]) -> bool:
         """3 tentatives ; False si le broker reste injoignable (commande quand même créée)."""
@@ -73,10 +87,12 @@ class OrderEventPublisher:
                 try:
                     channel = conn.channel()
                     self._declare_topologie(channel)
+                    channel.confirm_delivery()
                     channel.basic_publish(
                         exchange=self.exchange,
                         routing_key=self.queue,
                         body=body,
+                        mandatory=True,
                         properties=pika.BasicProperties(
                             content_type="application/json",
                             delivery_mode=2,  # durable

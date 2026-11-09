@@ -14,21 +14,24 @@ export default function Orders() {
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(1)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const confirm = useConfirm()
   const load = useCallback(async () => {
-    setOrders(null)
-    setError(null)
     try {
       const { data } = isAdmin && !status
         ? await ordersApi.all(page)
         : await ordersApi.mine(page, status || undefined)
       setOrders(data.items)
       setTotal(data.total)
+      setError(null)
     } catch (e) {
       setError(errMessage(e))
+    } finally {
+      setLoading(false)
     }
   }, [isAdmin, status, page])
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { void load() }, [load])
 
   return (
@@ -44,7 +47,7 @@ export default function Orders() {
             className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
               status === s ? 'bg-terracotta-600 text-white' : 'bg-white text-slate-600 hover:bg-sable-100 border border-sable-200'
             }`}
-            onClick={() => { setPage(1); setStatus(s) }}
+            onClick={() => { if (status === s && page === 1) return; setLoading(true); setError(null); setPage(1); setStatus(s) }}
           >
             {s ? s.replace('_', ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase()) : 'Toutes'}
           </button>
@@ -53,8 +56,10 @@ export default function Orders() {
 
       {error && <div className="mt-4"><ErrorBanner message={error} /></div>}
 
-      {orders === null && !error ? (
+      {loading ? (
         <Spinner label="Chargement de vos commandes…" />
+      ) : error && orders === null ? (
+        <button className="button-secondary mt-4" onClick={() => { setLoading(true); void load() }}>Réessayer</button>
       ) : orders?.length === 0 ? (
         <EmptyState title="Aucune commande" hint="Passez votre première commande depuis le catalogue.">
           <Link to="/catalogue" className="button-primary mt-2">Aller au catalogue</Link>
@@ -88,9 +93,9 @@ export default function Orders() {
             ))}
           </div>
           <div className="mt-4 flex items-center justify-center gap-3">
-            <button className="button-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Précédent</button>
+            <button className="button-secondary" disabled={page <= 1} onClick={() => { setLoading(true); setPage((p) => p - 1) }}>← Précédent</button>
             <span className="text-sm text-slate-500">{total} commande(s)</span>
-            <button className="button-secondary" disabled={page * 20 >= total} onClick={() => setPage((p) => p + 1)}>Suivant →</button>
+            <button className="button-secondary" disabled={page * 20 >= total} onClick={() => { setLoading(true); setPage((p) => p + 1) }}>Suivant →</button>
           </div>
         </>
       )}

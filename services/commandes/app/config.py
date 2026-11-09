@@ -1,6 +1,8 @@
 """Configuration du service Commandes (12-factor)."""
 
 from functools import lru_cache
+import os
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -29,6 +31,8 @@ class Settings(BaseSettings):
     rabbitmq_exchange: str = "marcheci"
     orders_queue: str = "order.created"
     orders_dlq: str = "order.created.dlq"
+    consumer_max_retries: int = 3
+    consumer_retry_backoff_seconds: float = 2.0
     events_enabled: bool = True
 
     # JWT (décodage) + compte système pour les appels inter-services (ADMIN)
@@ -46,4 +50,12 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    for attr, env_name in (("database_url", "DATABASE_URL_FILE"), ("jwt_secret", "JWT_SECRET_FILE"), ("rabbitmq_password", "RABBITMQ_PASSWORD_FILE"), ("svc_commandes_password", "SVC_COMMANDES_PASSWORD_FILE")):
+        secret_path = os.environ.get(env_name)
+        if secret_path:
+            value = Path(secret_path).read_text(encoding="utf-8").strip()
+            if not value:
+                raise ValueError(f"Le secret {env_name} est vide")
+            setattr(settings, attr, value)
+    return settings

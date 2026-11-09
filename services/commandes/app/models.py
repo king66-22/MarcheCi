@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -70,3 +70,18 @@ class OrderItem(Base):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
 
     order: Mapped[Order] = relationship(back_populates="items")
+
+
+class OutboxEvent(Base):
+    """Événement à publier, enregistré dans la même transaction que la commande."""
+
+    __tablename__ = "outbox_events"
+    __table_args__ = (Index("ix_outbox_events_pending", "published_at", "id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)

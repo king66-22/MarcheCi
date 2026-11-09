@@ -4,6 +4,7 @@ from fastapi import APIRouter, Response, status
 from sqlalchemy import text
 
 import httpx
+import pika
 
 from ..config import get_settings
 from ..database import engine
@@ -15,7 +16,6 @@ router = APIRouter(tags=["health"])
 def health(response: Response):
     s = get_settings()
     components: dict[str, str] = {}
-    core_ok = True
 
     try:
         with engine.connect() as conn:
@@ -23,14 +23,20 @@ def health(response: Response):
         components["database"] = "up"
     except Exception:
         components["database"] = "down"
-        core_ok = False
-
-    # RabbitMQ : socket de test (option, best effort)
-    import socket
 
     try:
-        with socket.create_connection((s.rabbitmq_host, s.rabbitmq_port), timeout=1.5):
-            components["rabbitmq"] = "up"
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(
+                host=s.rabbitmq_host,
+                port=s.rabbitmq_port,
+                credentials=pika.PlainCredentials(s.rabbitmq_user, s.rabbitmq_password),
+                socket_timeout=1.5,
+                connection_attempts=1,
+                heartbeat=0,
+            )
+        )
+        connection.close()
+        components["rabbitmq"] = "up"
     except Exception:
         components["rabbitmq"] = "down"
 
@@ -42,6 +48,7 @@ def health(response: Response):
     except Exception:
         components["catalogue"] = "unreachable"
 
-    if not core_ok:
+    ready = components["database"] == "up" and components["rabbitmq"] == "up" and components["catalogue"] == "reachable"
+    if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-    return {"status": "ok" if core_ok else "down", "components": components}
+    return {"status": "ok" if ready else "down", "components": components}

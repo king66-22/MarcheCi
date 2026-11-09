@@ -1,7 +1,6 @@
 """Router : consultation des notifications (ADMIN) + healthcheck."""
 
 import logging
-import socket
 from typing import Annotated
 
 import jwt
@@ -42,21 +41,29 @@ def _require_admin(credentials: Annotated[HTTPAuthorizationCredentials | None, D
 
 @router.get("/health")
 def health(response: Response):
-    """BDD + RabbitMQ joignables + thread consommateur vivant."""
+    """HTTP 200 uniquement si la BDD, RabbitMQ et le consommateur sont prêts."""
     s = get_settings()
     components: dict[str, str] = {}
-    core_ok = True
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         components["database"] = "up"
     except Exception:
         components["database"] = "down"
-        core_ok = False
 
     try:
-        with socket.create_connection((s.rabbitmq_host, s.rabbitmq_port), timeout=1.5):
-            components["rabbitmq"] = "up"
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(
+                host=s.rabbitmq_host,
+                port=s.rabbitmq_port,
+                credentials=pika.PlainCredentials(s.rabbitmq_user, s.rabbitmq_password),
+                socket_timeout=1.5,
+                connection_attempts=1,
+                heartbeat=0,
+            )
+        )
+        connection.close()
+        components["rabbitmq"] = "up"
     except Exception:
         components["rabbitmq"] = "down"
 
@@ -64,10 +71,71 @@ def health(response: Response):
 
     consumer = get_active_consumer()
     components["consumer"] = "up" if consumer is not None and consumer.running else "down"
-
-    if not core_ok:
+    ready = all(value == "up" for value in components.values())
+    if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-    return {"status": "ok" if core_ok else "down", "components": components}
+    return {"status": "ok" if ready else "down", "components": components}
+
+
+@router.post("/internal/replay-dlq")
+def replay_dlq(
+    _admin: Annotated[dict, Depends(_require_admin)],
+    limit: int = Query(default=20, ge=1, le=100),
+):
+    """Rejoue au plus `limit` messages : publish confirmé avant ack de la DLQ."""
+    s = get_settings()
+    connection = None
+    replayed = 0
+    try:
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(
+                host=s.rabbitmq_host,
+                port=s.rabbitmq_port,
+                credentials=pika.PlainCredentials(s.rabbitmq_user, s.rabbitmq_password),
+                socket_timeout=3,
+                connection_attempts=1,
+                heartbeat=0,
+            )
+        )
+        channel = connection.channel()
+        channel.queue_declare(queue=s.orders_dlq, durable=True, passive=True)
+        channel.queue_declare(queue=s.orders_queue, durable=True, passive=True)
+        channel.confirm_delivery()
+
+        for _ in range(limit):
+            method, properties, body = channel.basic_get(queue=s.orders_dlq, auto_ack=False)
+            if method is None:
+                break
+            headers = dict(properties.headers or {})
+            headers.pop("x-retry", None)
+            headers.pop("reason", None)
+            message = pika.BasicProperties(
+                content_type=properties.content_type or "application/json",
+                delivery_mode=2,
+                headers=headers,
+            )
+            try:
+                channel.basic_publish(
+                    exchange="",
+                    routing_key=s.orders_queue,
+                    body=body,
+                    properties=message,
+                    mandatory=True,
+                )
+            except (pika.exceptions.UnroutableError, pika.exceptions.NackError):
+                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+                raise
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            replayed += 1
+        return {"replayed": replayed, "limit": limit}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("event", extra={"event": "dlq_replay_failed"})
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Rejeu DLQ indisponible") from exc
+    finally:
+        if connection is not None and connection.is_open:
+            connection.close()
 
 
 @router.get("/notifications")

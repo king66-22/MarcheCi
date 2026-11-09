@@ -1,0 +1,30 @@
+{
+  "scenario": "load_catalogue",
+  "tag": "e2e-isolated-1-replica",
+  "vus_pic": 50,
+  "ramp_s": 20,
+  "hold_s": 40,
+  "total": {
+    "requetes": 870,
+    "debit_rps": 12.3,
+    "p95_ms": 3810,
+    "rate_checks": 1,
+    "duree_ms_total": 3231
+  },
+  "cache_redis": {
+    "p50_ms": 2402,
+    "p95_ms": 3754,
+    "max_ms": 4213,
+    "requetes": 632
+  },
+  "db_postgres": {
+    "p50_ms": 2742,
+    "p95_ms": 3960,
+    "max_ms": 4526,
+    "requetes": 238
+  },
+  "erreurs": {
+    "cache": 0,
+    "db": 0
+  }
+}

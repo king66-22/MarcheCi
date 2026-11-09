@@ -29,7 +29,7 @@ export default function Register() {
     if (!validate()) return
     setBusy(true)
     try {
-      await register({ email: form.email.trim(), password: form.password, full_name: form.full_name.trim() })
+      await register({ email: form.email.trim(), password: form.password, full_name: form.full_name.trim(), phone: form.phone.trim() || undefined })
       navigate('/')
     } catch (err) {
       setError(errMessage(err, 'Inscription impossible. Réessayez.'))
@@ -39,10 +39,16 @@ export default function Register() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-14">
-      <div className="card p-8">
-        <h1 className="text-2xl font-extrabold text-marche-800">Créer mon compte</h1>
-        <p className="mt-1 text-sm text-slate-500">Achetez et suivez vos commandes en quelques clics.</p>
+    <div className="page-width max-w-5xl py-8 sm:py-12">
+      <div className="auth-shell">
+        <aside className="auth-aside">
+          <Link to="/" className="brand text-white"><span className="brand-mark bg-white/15"><span className="text-lg">M</span></span><span className="brand-name text-white">Marché<span>CI</span></span></Link>
+          <div><h2>Le marché d’Adjamé, à votre portée.</h2><p>Créez votre compte pour suivre vos commandes et retrouver votre panier en toute simplicité.</p></div>
+        </aside>
+        <div className="auth-form">
+        <p className="eyebrow">Bienvenue sur MarchéCI</p>
+        <h1 className="font-display mt-2 text-3xl font-bold text-marche-900">Créer mon compte</h1>
+        <p className="mt-2 text-sm text-slate-500">Quelques informations suffisent pour commencer.</p>
         <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4" noValidate>
           <Field label="Nom complet" required error={errors.full_name ?? undefined}>
             <input className={inputClass} value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} required />
@@ -67,6 +73,7 @@ export default function Register() {
         <p className="mt-6 text-sm text-slate-500">
           Déjà client ? <Link to="/connexion" className="font-semibold text-terracotta-600 hover:underline">Connectez-vous</Link>
         </p>
+        </div>
       </div>
     </div>
   )

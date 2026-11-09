@@ -18,6 +18,7 @@ import AdminCategories from './pages/admin/Categories'
 import AdminOrders from './pages/admin/Orders'
 import AdminUsers from './pages/admin/Users'
 import AdminNotifications from './pages/admin/Notifications'
+import NotFound from './pages/NotFound'
 
 export default function App() {
   return (
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/admin/commandes" element={<RequireAdmin><AdminOrders /></RequireAdmin>} />
           <Route path="/admin/utilisateurs" element={<RequireAdmin><AdminUsers /></RequireAdmin>} />
           <Route path="/admin/notifications" element={<RequireAdmin><AdminNotifications /></RequireAdmin>} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
       <Footer />

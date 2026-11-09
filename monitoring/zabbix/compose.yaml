@@ -15,14 +15,15 @@ name: marcheci-monitoring
 
 services:
   zabbix-db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
     environment:
       POSTGRES_USER: zabbix
-      POSTGRES_PASSWORD: ${MON_ZBX_DB_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/secrets/zabbix_db_password
       POSTGRES_DB: zabbix
     volumes:
       - zabbixdb:/var/lib/postgresql/data
     networks: [monitoring]
+    secrets: [zabbix_db_password]
     mem_limit: 384m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U zabbix"]
@@ -32,11 +33,10 @@ services:
     restart: unless-stopped
 
   zabbix-server:
-    image: zabbix/zabbix-server-pgsql:7.0-alpine
+    image: zabbix/zabbix-server-pgsql:7.0-alpine@sha256:401dc90cff398aaf6a0fa72625f4b9b57407e61231f94e13e7f4e68aeff0c42c
     environment:
       DB_SERVER_HOST: zabbix-db
       POSTGRES_USER: zabbix
-      POSTGRES_PASSWORD: ${MON_ZBX_DB_PASSWORD}
       POSTGRES_DB: zabbix
       ZBX_STARTPOLLERS: "5"
       ZBX_STARTHTTPPOLLERS: "5"
@@ -45,22 +45,27 @@ services:
       - monitoring
       - marcheci_back
       - marcheci_front
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["export POSTGRES_PASSWORD=\"$(cat /run/secrets/zabbix_db_password)\"; exec /usr/bin/docker-entrypoint.sh /usr/sbin/zabbix_server --foreground -c /etc/zabbix/zabbix_server.conf"]
+    secrets: [zabbix_db_password]
     mem_limit: 384m
     depends_on:
       zabbix-db: { condition: service_healthy }
     restart: unless-stopped
 
   zabbix-web:
-    image: zabbix/zabbix-web-nginx-pgsql:7.0-alpine
+    image: zabbix/zabbix-web-nginx-pgsql:7.0-alpine@sha256:a54ce2e19aaf0a61609e4bbc7ec01c16bef504e6e1c51e3854120ac76d2dbaeb
     environment:
       DB_SERVER_HOST: zabbix-db
       POSTGRES_USER: zabbix
-      POSTGRES_PASSWORD: ${MON_ZBX_DB_PASSWORD}
       POSTGRES_DB: zabbix
       ZBX_SERVER_HOST: zabbix-server
       PHP_TZ: Africa/Abidjan
     ports:
-      - "${MON_WEB_PORT:-8090}:8080"
+      - "${MON_WEB_BIND:-127.0.0.1}:${MON_WEB_PORT:-8090}:8080"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["export POSTGRES_PASSWORD=\"$(cat /run/secrets/zabbix_db_password)\"; exec docker-entrypoint.sh"]
+    secrets: [zabbix_db_password]
     networks:
       - monitoring
     mem_limit: 256m
@@ -71,7 +76,7 @@ services:
 
   # Agent 2 : surveillance conteneurisée standard (agent.ping, uptime système…)
   zabbix-agent2:
-    image: zabbix/zabbix-agent2:7.0-alpine
+    image: zabbix/zabbix-agent2:7.0-alpine@sha256:aa8fa07dbd41e148b6156555bf10ba6d928efa40f9a4632d6787fb90d4756679
     environment:
       ZBX_HOSTNAME: marcheci-agent
       ZBX_SERVER_HOST: zabbix-server
@@ -94,3 +99,7 @@ networks:
 
 volumes:
   zabbixdb:
+
+secrets:
+  zabbix_db_password:
+    file: ./secrets/zabbix_db_password.secret

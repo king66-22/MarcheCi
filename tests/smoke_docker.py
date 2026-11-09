@@ -10,12 +10,13 @@ Vérifie, à travers UNIQUEMENT le port 80 (exigence réseau) :
   6. événement RabbitMQ : notification SIMULE_ENVOYE créée pour la commande
 """
 
+import os
 import sys
 import time
 
 import httpx
 
-BASE = "http://localhost"
+BASE = os.environ.get("MARCHECI_BASE_URL", "http://localhost").rstrip("/")
 
 # secrets lus hors Git (le .env n'est déployé que sur la machine)
 import re
@@ -51,7 +52,22 @@ def main() -> int:
     r = httpx.get(f"{BASE}/health", timeout=5)
     check("GET /health (gateway Nginx)", r.status_code == 200, r.text[:80])
 
-    for svc in ("/api/catalogue/health", "/api/commandes/health", "/api/utilisateurs/health", "/api/notifications/health"):
+    health_routes = ("/api/catalogue/health", "/api/commandes/health", "/api/utilisateurs/health", "/api/notifications/health")
+    # Compose démarre les services en parallèle; attendre la santé réelle avant le scénario métier.
+    for svc in health_routes:
+        deadline = time.time() + 90
+        while time.time() < deadline:
+            try:
+                if httpx.get(f"{BASE}{svc}", timeout=10).status_code == 200:
+                    break
+            except httpx.HTTPError:
+                pass
+            time.sleep(1)
+        else:
+            check(f"attente santé {svc}", False, "délai de démarrage dépassé")
+            return 1
+
+    for svc in health_routes:
         r = httpx.get(f"{BASE}{svc}", timeout=10)
         check(f"GET {svc}", r.status_code == 200, str(r.json().get("components") or r.json().get("status"))[:70])
 
@@ -95,7 +111,10 @@ def main() -> int:
         headers=ch,
         timeout=20,
     )
-    check("POST /orders (prix validés serveur)", r.status_code == 201, f"total={r.json().get('total_xof')} (attendu 37500)")
+    if r.status_code != 201:
+        check("POST /orders (prix validés serveur)", False, f"status={r.status_code}: {r.text[:200]}")
+        return 1
+    check("POST /orders (prix validés serveur)", True, f"total={r.json().get('total_xof')} (attendu 37500)")
     order = r.json()
     check("total = 3 × 12500 = 37500", order["total_xof"] == 37500, f"total={order['total_xof']}")
     oid = order["id"]

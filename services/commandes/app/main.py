@@ -3,6 +3,7 @@
 import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,15 +11,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .logging_config import setup_logging
 from .routers import health, orders
+from .outbox import OutboxWorker
 
 setup_logging()
 logger = logging.getLogger(__name__)
 settings = get_settings()
+outbox_worker = OutboxWorker()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if settings.events_enabled:
+        outbox_worker.start()
+    try:
+        yield
+    finally:
+        outbox_worker.stop()
 
 app = FastAPI(
     title="MarchéCI — Service Commandes",
     description="Passage et suivi des commandes (prix validés au niveau du service Catalogue).",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 if settings.cors_origins_list:

@@ -97,6 +97,7 @@ export const inputClass =
   'w-full rounded-lg border border-sable-200 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-terracotta-500 focus:outline-none'
 
 /** Confirmation avant les actions destructives (exigence UX) */
+// oxlint-disable-next-line react/only-export-components
 export function useConfirm() {
   return (message: string, onYes: () => void) => {
     if (window.confirm(message)) onYes()
@@ -117,6 +118,7 @@ export function Toast({ message, onDone }: { message: string; onDone: () => void
 }
 
 /** helper : extrait le premier détail lisible d'une erreur axios */
+// oxlint-disable-next-line react/only-export-components
 export function errMessage(e: unknown, fallback = 'Une erreur est survenue. Réessayez.'): string | null {
   const detail = (e as { response?: { data?: { detail?: string | { msg?: string }[] } } })?.response?.data?.detail
   if (typeof detail === 'string') return detail

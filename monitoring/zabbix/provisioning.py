@@ -9,17 +9,60 @@
 """
 
 import json
+import os
+from pathlib import Path
 import subprocess
 import sys
 import time
+try:
+    import httpx
+except ImportError:  # Le provisionnement local reste utilisable sans dépendance Python supplémentaire.
+    from urllib import error, request
 
-import httpx
+    class _Response:
+        def __init__(self, body: bytes):
+            self._body = body
 
-API = "http://localhost:8090/api_jsonrpc.php"
+        def json(self):
+            return json.loads(self._body.decode("utf-8"))
+
+    class _HttpxCompat:
+        HTTPError = error.URLError
+
+        @staticmethod
+        def post(url, *, json, timeout=30):
+            req = request.Request(
+                url,
+                data=__import__("json").dumps(json).encode("utf-8"),
+                headers={"Content-Type": "application/json-rpc"},
+                method="POST",
+            )
+            with request.urlopen(req, timeout=timeout) as response:
+                return _Response(response.read())
+
+    httpx = _HttpxCompat()
+
+API = os.environ.get("ZABBIX_API_URL", "http://localhost:8090/api_jsonrpc.php")
 HOST_NAME = "MarcheCI"  # les caractères accentués sont refusés par Zabbix (noms d'hôtes)
 
+
+def get_admin_credentials() -> tuple[str, str]:
+    """Lit les identifiants depuis l'environnement ou .env, sans valeur par défaut."""
+    values: dict[str, str] = {}
+    env_path = Path(__file__).resolve().parents[2] / ".env"
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                key, value = line.split("=", 1)
+                values[key.strip()] = value.strip()
+    user = os.environ.get("ZABBIX_ADMIN_USER", values.get("ZABBIX_ADMIN_USER", "Admin"))
+    password = os.environ.get("ZABBIX_ADMIN_PASSWORD", values.get("ZABBIX_ADMIN_PASSWORD", ""))
+    if not password or password.startswith("CHANGE_ME"):
+        raise RuntimeError("ZABBIX_ADMIN_PASSWORD doit être configuré dans .env ou l'environnement")
+    return user, password
+
 ITEMS = {
-    "health.gateway": "http://gateway/health",
+    "health.gateway": "http://gateway:8080/health",
     "health.catalogue": "http://catalogue:8000/health",
     "health.commandes": "http://commandes:8000/health",
     "health.utilisateurs": "http://utilisateurs:8000/health",
@@ -77,7 +120,7 @@ def wait_web(seconds: int = 180) -> None:
 def provision() -> None:
     z = Zbx()
     wait_web()
-    z.login_wait("Admin", "zabbix")  # mot de passe par défaut — à changer en prod doc §06.5
+    z.login_wait(*get_admin_credentials())
     print("[OK] login Admin")
 
     params = {"filter": {"name": HOST_NAME}}
@@ -105,8 +148,13 @@ def provision() -> None:
 
     # items HTTP agent
     for key, url in ITEMS.items():
-        if z.call("item.get", {"hostids": host_id, "filter": {"key_": key}}):
-            print(f"[OK] item {key} existe")
+        existing = z.call("item.get", {"hostids": host_id, "filter": {"key_": key}})
+        if existing:
+            if key in ITEMS and existing[0].get("url") != url:
+                z.call("item.update", {"itemid": existing[0]["itemid"], "url": url})
+                print(f"[OK] item {key} URL mise à jour")
+            else:
+                print(f"[OK] item {key} existe")
             continue
         z.call("item.create", {
             "hostid": host_id, "name": key, "key_": key, "type": 19,
@@ -148,7 +196,7 @@ def provision() -> None:
 
 def verify_collect() -> bool:
     z = Zbx()
-    z.login_wait("Admin", "zabbix")
+    z.login_wait(*get_admin_credentials())
     host_id = z.call("host.get", {"filter": {"host": HOST_NAME}})[0]["hostid"]
     item_ids = {i["key_"]: i["itemid"] for i in z.call("item.get", {"hostids": host_id})}
     time.sleep(50)
@@ -164,7 +212,7 @@ def verify_collect() -> bool:
 def demo_alerte() -> None:
     """Arrête les répliques catalogue → PROBLÈME sur health.catalogue -> redémarre."""
     z = Zbx()
-    z.login_wait("Admin", "zabbix")
+    z.login_wait(*get_admin_credentials())
     host_id = z.call("host.get", {"filter": {"host": HOST_NAME}})[0]["hostid"]
     itemid = {i["key_"]: i["itemid"] for i in z.call("item.get", {"hostids": host_id})}["health.catalogue"]
 

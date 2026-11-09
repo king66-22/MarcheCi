@@ -12,6 +12,7 @@ export default function Catalogue() {
   const [total, setTotal] = useState(0)
   const [categories, setCategories] = useState<Category[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
   const { add } = useCart()
 
@@ -26,8 +27,6 @@ export default function Catalogue() {
   }, [])
 
   const load = useCallback(async () => {
-    setProducts(null)
-    setError(null)
     try {
       const { data } = await catalogueApi.listProducts({
         q: q || undefined,
@@ -38,11 +37,15 @@ export default function Catalogue() {
       })
       setProducts(data.items)
       setTotal(data.total)
+      setError(null)
     } catch (e) {
       setError(errMessage(e))
+    } finally {
+      setLoading(false)
     }
   }, [q, category, inStock, page])
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { void load() }, [load])
 
   const update = (key: string, value: string) => {
@@ -50,6 +53,9 @@ export default function Catalogue() {
     if (value) next.set(key, value)
     else next.delete(key)
     if (key !== 'page') next.delete('page')
+    if (next.toString() === searchParams.toString()) return
+    setLoading(true)
+    setError(null)
     setSearchParams(next)
   }
 
@@ -60,26 +66,28 @@ export default function Catalogue() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      <h1 className="text-2xl font-extrabold text-marche-800">Catalogue du marché</h1>
+    <div className="page-width py-8 sm:py-10">
+      <p className="eyebrow">La sélection de la coopérative</p>
+      <h1 className="section-heading mt-2">Le marché d’Adjamé</h1>
+      <p className="section-copy">Parcourez les produits, filtrez par rayon et ajoutez vos trouvailles au panier.</p>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[260px_1fr]">
         {/* Filtres */}
-        <aside className="card h-fit p-4 lg:sticky lg:top-20">
-          <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
+        <aside className="card h-fit rounded-2xl p-5 lg:sticky lg:top-32">
+          <h2 className="font-display text-xl font-bold text-marche-900">Affiner la recherche</h2>
+          <form onSubmit={(event) => { event.preventDefault(); update('q', String(new FormData(event.currentTarget).get('q') ?? '').trim()) }} className="mt-4 flex flex-col gap-4">
             <label className="block">
-              <span className="mb-1 block text-sm font-medium">Recherche</span>
+              <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Recherche</span>
               <input
+                name="q"
                 type="search"
                 className="input-search"
                 placeholder="attiéké, café…"
                 defaultValue={q}
-                onBlur={(e) => update('q', e.target.value.trim())}
-                onKeyDown={(e) => { if (e.key === 'Enter') update('q', (e.target as HTMLInputElement).value.trim()) }}
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium">Rayon</span>
+              <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Rayon</span>
               <select className="input-search" value={category} onChange={(e) => update('categorie', e.target.value)}>
                 <option value="">Tous les rayons</option>
                 {categories.map((c) => (
@@ -91,6 +99,7 @@ export default function Catalogue() {
               <input type="checkbox" checked={inStock} onChange={(e) => update('stock', e.target.checked ? '1' : '')} />
               Uniquement les produits disponibles
             </label>
+            <button type="submit" className="button-primary w-full">Rechercher</button>
             {(q || category || inStock) && (
               <button className="button-secondary justify-center" onClick={() => setSearchParams(new URLSearchParams())}>
                 Réinitialiser les filtres
@@ -100,9 +109,10 @@ export default function Catalogue() {
         </aside>
 
         {/* Liste */}
-        <section aria-live="polite">
-          {error && <ErrorBanner message={error} />}
-          {products === null && !error ? (
+        <section aria-live="polite" aria-busy={products === null && !error}>
+          {error ? (
+            <div className="card flex flex-col items-start gap-4 p-6"><ErrorBanner message={error} /><p className="text-sm text-slate-500">Le service Catalogue n’a pas répondu. Vérifiez que MarchéCI est démarré.</p><button className="button-secondary" onClick={() => void load()}>Réessayer</button></div>
+          ) : loading || products === null ? (
             <Spinner label="Les commerçants déballent…" />
           ) : products?.length === 0 ? (
             <EmptyState

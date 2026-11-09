@@ -49,11 +49,55 @@ def test_notifications_requires_admin(client):
     assert client.get("/notifications").status_code == 401
 
 
-def test_health_ok(client):
+def test_health_ok(client, monkeypatch):
+    from app import consumer as consumer_module
+    from app.routers import monitor
+
+    class Connection:
+        def close(self):
+            pass
+
+    class ActiveConsumer:
+        running = True
+
+    monkeypatch.setattr(monitor.pika, "BlockingConnection", lambda *args, **kwargs: Connection())
+    consumer_module.set_active_consumer(ActiveConsumer())
     resp = client.get("/health")
     assert resp.status_code == 200
     body = resp.json()
     assert body["components"]["database"] == "up"
+    assert body["components"]["rabbitmq"] == "up"
+    assert body["components"]["consumer"] == "up"
+    consumer_module.set_active_consumer(None)
+
+
+def test_health_is_unhealthy_when_consumer_stopped(client, monkeypatch):
+    from app import consumer as consumer_module
+    from app.routers import monitor
+
+    class Connection:
+        def close(self):
+            pass
+
+    monkeypatch.setattr(monitor.pika, "BlockingConnection", lambda *a, **k: Connection())
+    monkeypatch.setattr(consumer_module, "get_active_consumer", lambda: None)
+    response = client.get("/health")
+    assert response.status_code == 503
+    assert response.json()["components"]["consumer"] == "down"
+
+
+def test_health_is_unhealthy_when_rabbitmq_auth_fails(client, monkeypatch):
+    from app import consumer as consumer_module
+    from app.routers import monitor
+
+    class ActiveConsumer:
+        running = True
+
+    monkeypatch.setattr(monitor.pika, "BlockingConnection", lambda *a, **k: (_ for _ in ()).throw(ConnectionError()))
+    monkeypatch.setattr(consumer_module, "get_active_consumer", lambda: ActiveConsumer())
+    response = client.get("/health")
+    assert response.status_code == 503
+    assert response.json()["components"]["rabbitmq"] == "down"
 
 
 def test_list_notifications_admin(client, db_session):
@@ -130,6 +174,18 @@ def test_consumer_processes_valid_event(consumer_db):
     assert ch.published == []
 
 
+def test_consumer_acknowledges_duplicate_order_without_duplicate_notification(consumer_db):
+    consumer = EventConsumer({}, queue="q", dlq="d", exchange="e")
+    ch = FakeChannel()
+    body = json.dumps(VALID_EVENT).encode()
+    consume(consumer, ch, body, tag=1)
+    consume(consumer, ch, body, tag=2)
+
+    with consumer_db() as db:
+        assert db.query(Notification).filter_by(order_id=VALID_EVENT["order_id"]).count() == 1
+    assert ch.acked == [("ack", 1), ("ack", 2)]
+
+
 def test_consumer_sends_non_json_to_dlq(consumer_db):
     consumer = EventConsumer({}, queue="q", dlq="d", exchange="e")
     ch = FakeChannel()
@@ -172,10 +228,16 @@ def test_consumer_transient_failure_retries_then_dlq(consumer_db, monkeypatch):
     # 1re arrivée : retry planifié (republication dans q + ack original)
     ch = FakeChannel()
     consume(consumer, ch, body, headers={"x-retry": 0})
-    assert any(p["routing_key"] == "q" for p in ch.published), "doit être replanifié"
+    retry = next(p for p in ch.published if p["routing_key"] == "q.retry.1")
+    assert retry["properties"].expiration is None
+    assert retry["properties"].headers["x-retry"] == 1
     assert not any(p["routing_key"] == "d" for p in ch.published)
 
     # Tentative finale (x-retry=1 = max) : va en DLQ
     ch2 = FakeChannel()
     consume(consumer, ch2, body, headers={"x-retry": 1})
     assert any(p["routing_key"] == "d" for p in ch2.published), "doit finir en DLQ"
+
+
+def test_dlq_replay_requires_admin(client):
+    assert client.post("/internal/replay-dlq").status_code == 401

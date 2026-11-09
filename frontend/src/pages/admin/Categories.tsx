@@ -9,18 +9,22 @@ export default function AdminCategories() {
   const [slug, setSlug] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const confirm = useConfirm()
 
   const load = useCallback(async () => {
-    setCategories(null)
     try {
       const { data } = await catalogueApi.listCategories()
       setCategories(data)
+      setError(null)
     } catch (e) {
       setError(errMessage(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { void load() }, [load])
 
   const slugify = (v: string) =>
@@ -78,9 +82,11 @@ export default function AdminCategories() {
         <button className="button-primary w-fit">Créer le rayon</button>
       </form>
 
-      {categories === null ? (
+      {categories === null ? (loading ? (
         <Spinner label="Chargement des rayons…" />
-      ) : categories.length === 0 ? (
+      ) : (
+        <button className="button-secondary mt-4" onClick={() => { setLoading(true); void load() }}>Réessayer</button>
+      )) : categories.length === 0 ? (
         <p className="mt-6 text-sm text-slate-500">Aucun rayon pour l'instant.</p>
       ) : (
         <ul className="mt-6 flex flex-col gap-2">

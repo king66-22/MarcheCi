@@ -15,18 +15,22 @@ export default function AdminNotifications() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    setRows(null)
     try {
       const { data } = await notificationsApi.list(page)
       setRows(data.items)
       setTotal(data.total)
+      setError(null)
     } catch (e) {
       setError((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Chargement impossible')
+    } finally {
+      setLoading(false)
     }
   }, [page])
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { void load() }, [load])
 
   return (
@@ -42,8 +46,10 @@ export default function AdminNotifications() {
 
       {error && <div className="mt-4"><ErrorBanner message={error} /></div>}
 
-      {rows === null && !error ? (
+      {loading ? (
         <Spinner label="Chargement du journal…" />
+      ) : error && rows === null ? (
+        <button className="button-secondary mt-4" onClick={() => { setLoading(true); void load() }}>Réessayer</button>
       ) : (
         <>
           <p className="mt-6 text-sm text-slate-500">{total} notification(s)</p>
@@ -87,8 +93,8 @@ export default function AdminNotifications() {
             </table>
           </div>
           <div className="mt-4 flex items-center justify-center gap-3">
-            <button className="button-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Précédent</button>
-            <button className="button-secondary" disabled={rows !== null && rows.length < 20} onClick={() => setPage((p) => p + 1)}>Suivant →</button>
+            <button className="button-secondary" disabled={page <= 1} onClick={() => { setLoading(true); setPage((p) => p - 1) }}>← Précédent</button>
+            <button className="button-secondary" disabled={rows !== null && rows.length < 20} onClick={() => { setLoading(true); setPage((p) => p + 1) }}>Suivant →</button>
           </div>
         </>
       )}

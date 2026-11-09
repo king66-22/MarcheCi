@@ -25,11 +25,71 @@ def seed_products(fake_catalogue):
 # -------------------------------- health --------------------------------
 
 
-def test_health(client):
+def test_health(client, monkeypatch):
+    from types import SimpleNamespace
+    from app.routers import health
+
+    class Connection:
+        def close(self):
+            pass
+
+    class HttpClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def get(self, *args, **kwargs):
+            return SimpleNamespace(status_code=200)
+
+    monkeypatch.setattr(health.pika, "BlockingConnection", lambda *a, **k: Connection())
+    monkeypatch.setattr(health.httpx, "Client", HttpClient)
     resp = client.get("/health")
     assert resp.status_code == 200
     body = resp.json()
     assert body["components"]["database"] == "up"
+    assert body["components"]["rabbitmq"] == "up"
+    assert body["components"]["catalogue"] == "reachable"
+
+
+def test_health_unhealthy_when_rabbitmq_auth_fails(client, monkeypatch):
+    from app.routers import health
+
+    class HttpClient:
+        def __init__(self, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def get(self, *args, **kwargs): return type("Response", (), {"status_code": 200})()
+
+    monkeypatch.setattr(health.httpx, "Client", HttpClient)
+    monkeypatch.setattr(health.pika, "BlockingConnection", lambda *a, **k: (_ for _ in ()).throw(ConnectionError()))
+    response = client.get("/health")
+    assert response.status_code == 503
+    assert response.json()["components"]["rabbitmq"] == "down"
+
+
+def test_health_unhealthy_when_catalogue_is_unreachable(client, monkeypatch):
+    from app.routers import health
+
+    class Connection:
+        def close(self):
+            pass
+
+    monkeypatch.setattr(health.pika, "BlockingConnection", lambda *a, **k: Connection())
+    class HttpClient:
+        def __init__(self, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def get(self, *args, **kwargs): raise health.httpx.ConnectError("unreachable")
+
+    monkeypatch.setattr(health.httpx, "Client", HttpClient)
+    response = client.get("/health")
+    assert response.status_code == 503
+    assert response.json()["components"]["catalogue"] == "unreachable"
 
 
 # ------------------------- création de commande -------------------------
@@ -44,7 +104,22 @@ def test_create_order_validates_prices_server_side(client, fake_catalogue, fake_
     assert body["status"] == "EN_ATTENTE"
     assert body["items"][0]["unit_price_xof"] == 12500
     assert body["items"][0]["product_name"] == "Attiéké Trésor 1kg"
-    assert fake_publisher.published and fake_publisher.published[0]["event"] == "order.created"
+    from sqlalchemy import select
+    from app.database import get_db
+    from app.models import OutboxEvent
+    from app.outbox import run_once
+
+    db = next(client.app.dependency_overrides[get_db]())
+    try:
+        event = db.scalar(select(OutboxEvent).order_by(OutboxEvent.id.desc()))
+        assert event is not None and event.payload["order_id"] == body["id"]
+        assert event.published_at is None
+        assert run_once(db, fake_publisher) is True
+        db.refresh(event)
+        assert event.published_at is not None
+        assert fake_publisher.published and fake_publisher.published[0]["event"] == "order.created"
+    finally:
+        db.close()
 
 
 def test_create_order_requires_auth(client):
@@ -109,6 +184,25 @@ def test_broker_down_order_still_created(client, fake_publisher):
     fake_publisher.fail = True
     resp = client.post("/orders", json=BASE_ORDER, headers=AUTH_CLIENT)
     assert resp.status_code == 201
+    from sqlalchemy import select
+    from app.database import get_db
+    from app.models import OutboxEvent
+    from app.outbox import run_once
+
+    db = next(client.app.dependency_overrides[get_db]())
+    try:
+        event = db.scalar(select(OutboxEvent).order_by(OutboxEvent.id.desc()))
+        assert event is not None and event.published_at is None
+        assert event.attempts == 0
+        assert run_once(db, fake_publisher) is False
+        db.refresh(event)
+        assert event.attempts >= 1
+        fake_publisher.fail = False
+        assert run_once(db, fake_publisher) is True
+        db.refresh(event)
+        assert event.published_at is not None
+    finally:
+        db.close()
 
 
 # --------------------------- historique et accès ---------------------------

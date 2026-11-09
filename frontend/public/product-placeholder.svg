@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" role="img" aria-label="Illustration d’un panier du marché">
+  <rect width="480" height="360" rx="30" fill="#e9eee4"/>
+  <circle cx="365" cy="78" r="42" fill="#e4bd63" opacity=".82"/>
+  <path d="M62 262c44-54 59-113 83-162 6-12 22-9 23 5 3 31-9 65-22 93 28-49 47-83 75-126 9-13 25-5 19 10-15 39-33 72-48 101 28-39 52-68 73-83 13-9 25 2 16 14-17 25-37 47-54 67 24-21 47-37 68-44 15-5 22 8 10 18-21 18-44 32-61 47 38-22 68-34 94-34 16 0 18 15 2 21-33 12-63 23-91 41 40-6 77-4 108 7 16 6 12 21-7 21H62z" fill="#4c7455" opacity=".95"/>
+  <path d="M119 185h234l-23 129H143z" fill="#b75d3b"/>
+  <path d="m123 194 28 118m16-120 12 121m31-122 1 122m33-121-9 121m39-121-18 119m44-118-26 116" stroke="#e0a482" stroke-width="8" opacity=".75"/>
+  <path d="M142 188c4-59 45-92 94-92s89 33 94 92" fill="none" stroke="#1e4536" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="175" cy="174" r="29" fill="#d96a42"/><path d="M175 145c4-14 17-19 29-15-7 9-16 14-29 15" fill="#397149"/>
+  <circle cx="238" cy="155" r="32" fill="#dcae3e"/><path d="M234 124c3-14 15-22 28-18-7 12-16 17-28 18" fill="#397149"/>
+  <circle cx="302" cy="174" r="29" fill="#8aaf63"/><path d="M297 147c0-13 11-23 24-21-4 12-12 19-24 21" fill="#397149"/>
+  <path d="M62 320h354" stroke="#d4ddcf" stroke-width="8" stroke-linecap="round"/>
+</svg>

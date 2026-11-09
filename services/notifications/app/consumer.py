@@ -15,6 +15,7 @@ import time
 from typing import Any
 
 import pika
+from sqlalchemy import select
 
 from .config import get_settings
 from .database import get_db_session
@@ -106,6 +107,7 @@ class EventConsumer:
         try:
             channel = conn.channel()
             self._declare_topologie(channel)
+            channel.confirm_delivery()
             channel.basic_qos(prefetch_count=10)
             channel.basic_consume(
                 queue=self.queue,
@@ -128,6 +130,23 @@ class EventConsumer:
         channel.queue_declare(queue=self.queue, durable=True, arguments=args)
         channel.queue_bind(queue=self.queue, exchange=self.exchange, routing_key=self.queue)
         channel.queue_bind(queue=self.dlq, exchange=self.exchange, routing_key=self.dlq)
+        # Chaque file retry possède son TTL fixe; son expiration retourne le message
+        # vers la file principale au lieu de le dead-letterer directement en DLQ.
+        for attempt in range(1, self.max_retries + 1):
+            retry_queue = self.retry_queue(attempt)
+            delay_ms = int(self.backoff * (2 ** (attempt - 1)) * 1000)
+            channel.queue_declare(
+                queue=retry_queue,
+                durable=True,
+                arguments={
+                    "x-message-ttl": delay_ms,
+                    "x-dead-letter-exchange": self.exchange,
+                    "x-dead-letter-routing-key": self.queue,
+                },
+            )
+
+    def retry_queue(self, attempt: int) -> str:
+        return f"{self.queue}.retry.{attempt}"
 
     # ----------------------------- Gestion d'un message -----------------------------
 
@@ -145,9 +164,12 @@ class EventConsumer:
 
         try:
             with get_db_session() as db:
-                notification = Notification(**event_to_notification(event))
-                db.add(notification)
-                db.commit()
+                order_id = int(event["order_id"])
+                exists = db.scalar(select(Notification.id).where(Notification.order_id == order_id).limit(1))
+                if exists is None:
+                    notification = Notification(**event_to_notification(event))
+                    db.add(notification)
+                    db.commit()
             channel.basic_ack(delivery_tag=method.delivery_tag)
         except ValueError as exc:
             self._reject_to_dlq(channel, method, body, str(exc))
@@ -156,14 +178,13 @@ class EventConsumer:
             # Erreur transitoire (BDD/indispo) : retry limité, sinon DLQ
             self.last_error = str(exc)
             if attempt <= self.max_retries:
-                delay_ms = int(self.backoff * (attempt) * 1000)
                 channel.basic_publish(
                     exchange="",
-                    routing_key=self.queue,
+                    routing_key=self.retry_queue(attempt),
                     body=body,
                     properties=pika.BasicProperties(
                         content_type="application/json", delivery_mode=2,
-                        headers={"x-retry": attempt}, expiration=str(delay_ms),
+                        headers={"x-retry": attempt},
                     ),
                 )
                 channel.basic_ack(delivery_tag=method.delivery_tag)  # ack l'original ; duplicate republié séparément

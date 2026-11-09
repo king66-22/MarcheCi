@@ -1,96 +1,91 @@
-# MarchéCI — Modèles de données (Étape 1)
+# MarchéCI — Modèles de données
 
-Une base logique par service, un compte SQL par service. Aucune shared table.
-Migrations Alembic par service, autogénérées puis relues.
+Chaque service écrit dans sa base logique et utilise son propre compte PostgreSQL. Les quatre bases résident sur le même serveur PostgreSQL Compose : cette séparation limite les accès croisés, mais ne protège pas contre une panne commune du serveur.
 
-## 1. marcheci_catalogue
+Les champs et contraintes ci-dessous résument les modèles SQLAlchemy et les migrations Alembic présents dans le dépôt.
 
-### categories
-| Colonne | Type | Contraintes |
+## 1. Catalogue (`marcheci_catalogue`)
+
+### `categories`
+
+| Champ | Type | Règle |
 |---|---|---|
-| id | INT | PK, identity |
-| slug | VARCHAR(80) | UNIQUE, NOT NULL |
-| name | VARCHAR(120) | NOT NULL |
+| `id` | Integer | Clé primaire |
+| `slug` | String(80) | Unique, non nul, indexé |
+| `name` | String(120) | Non nul |
 
-### products
-| Colonne | Type | Contraintes |
+### `products`
+
+| Champ | Type | Règle |
 |---|---|---|
-| id | INT | PK, identity |
-| slug | VARCHAR(160) | UNIQUE, NOT NULL |
-| name | VARCHAR(200) | NOT NULL |
-| description | TEXT | NOT NULL DEFAULT '' |
-| price_xof | BIGINT | NOT NULL, >= 0 (montant en FCFA entiers, pas de flottant) |
-| category_id | INT | FK → categories.id, nullable (produit sans catégorie) |
-| stock | INT | NOT NULL, >= 0 |
-| image_url | VARCHAR(500) | nullable |
-| is_active | BOOL | NOT NULL DEFAULT true |
-| created_at / updated_at | TIMESTAMPTZ | NOT NULL |
+| `id` | Integer | Clé primaire |
+| `slug` | String(160) | Unique, non nul, indexé |
+| `name` | String(200) | Non nul |
+| `description` | Text | Non nul, chaîne vide par défaut |
+| `price_xof` | BigInteger | Montant entier en FCFA, non négatif selon le schéma API |
+| `category_id` | Integer | Référence locale à `categories.id`, nullable |
+| `stock` | Integer | Stock courant, entier non négatif selon le schéma API |
+| `image_url` | String(500) | URL facultative; aucun dépôt de fichier n’est implémenté |
+| `is_active` | Boolean | Vrai par défaut; faux après désactivation administrative |
+| `created_at`, `updated_at` | DateTime | Horodatages UTC |
 
-Index : `slug (unique)`, `category_id`, trigram `name` (recherche), partial index
-`WHERE is_active` sur la liste publique.
+L’index composite `is_active, category_id` sert les listes publiques. Les produits sont triés du plus récent au plus ancien. Les filtres de texte, de catégorie et de disponibilité sont appliqués par Catalogue.
 
-> Prix stockés en **entiers FCFA** (ex. 12500) — jamais de `float` monétaire.
+## 2. Utilisateurs (`marcheci_utilisateurs`)
 
-## 2. marcheci_commandes
+### `users`
 
-### orders
-| Colonne | Type | Contraintes |
+| Champ | Type | Règle |
 |---|---|---|
-| id | INT | PK, identity |
-| user_id | INT | NOT NULL (idém for `utilisateurs`, pas de FK cross-DB) |
-| status | VARCHAR(20) | NOT NULL, CHECK dans {EN_ATTENTE, CONFIRMEE, EN_PREPARATION, EXPEDIEE, LIVREE, ANNULEE} |
-| total_xof | BIGINT | NOT NULL, calculé serveur |
-| delivery_address | VARCHAR(400) | NOT NULL |
-| delivery_phone | VARCHAR(30) | NOT NULL |
-| payment_status | VARCHAR(20) | NOT NULL DEFAULT 'A_REGIER' (adapter pour intégration future) |
-| created_at / updated_at | TIMESTAMPTZ | NOT NULL |
+| `id` | Integer | Clé primaire |
+| `email` | String(255) | Unique, non nul |
+| `password_hash` | String(255) | Hachage Argon2; jamais retourné par l’API |
+| `full_name` | String(150) | Non nul |
+| `phone` | String(30) | Facultatif |
+| `role` | String(10) | `CLIENT` par défaut; comptes `ADMIN` créés au bootstrap |
+| `is_active` | Boolean | Vrai par défaut |
+| `created_at`, `updated_at` | DateTime | Horodatages UTC |
 
-Index : `(user_id, created_at DESC)`, `status`.
+Le code et les contrats exposent les rôles `CLIENT` et `ADMIN` uniquement. Il n’existe pas de rôle commerçant, de rattachement produit-commerçant ou d’espace de gestion autonome pour un vendeur.
 
-### order_items
-| Colonne | Type | Contraintes |
+## 3. Commandes (`marcheci_commandes`)
+
+### `orders`
+
+| Champ | Type | Règle |
 |---|---|---|
-| id | INT | PK |
-| order_id | INT | FK → orders.id, ON DELETE CASCADE |
-| product_id | INT | NOT NULL (ref logique catalogue) |
-| product_name | VARCHAR(200) | NOT NULL (snapshot) |
-| unit_price_xof | BIGINT | NOT NULL (snapshot serveur, prix catalogue au moment de la commande) |
-| quantity | INT | NOT NULL, > 0 |
+| `id` | Integer | Clé primaire |
+| `user_id` | Integer | Identifiant logique; aucun lien SQL entre bases |
+| `status` | String(20) | `EN_ATTENTE`, `CONFIRMEE`, `EN_PREPARATION`, `EXPEDIEE`, `LIVREE` ou `ANNULEE` |
+| `total_xof` | BigInteger | Total recalculé côté serveur, en FCFA entier |
+| `delivery_address` | Text | Adresse de livraison, non nulle |
+| `delivery_phone` | String(30) | Téléphone de livraison, non nul |
+| `payment_status` | String(20) | `A_REGIER` par défaut; aucun paiement en ligne n’est intégré |
+| `created_at`, `updated_at` | DateTime | Horodatages UTC |
 
-## 3. marcheci_utilisateurs
+### `order_items`
 
-### users
-| Colonne | Type | Contraintes |
-|---|---|---|
-| id | INT | PK |
-| email | VARCHAR(255) | UNIQUE, NOT NULL |
-| password_hash | VARCHAR(255) | NOT NULL (Argon2id) |
-| full_name | VARCHAR(150) | NOT NULL |
-| phone | VARCHAR(30) | nullable |
-| role | VARCHAR(10) | NOT NULL, CHECK dans {CLIENT, ADMIN} |
-| is_active | BOOL | NOT NULL DEFAULT true |
-| created_at / updated_at | TIMESTAMPTZ | NOT NULL |
+Chaque ligne conserve `product_id`, `product_name`, `unit_price_xof` et `quantity`. Le nom et le prix sont copiés au moment de la commande : l’historique ne dépend pas des changements ultérieurs du catalogue. Seul `order_id` possède une clé étrangère, vers la commande dans la même base.
 
-Le hash de mot de passe n'est JAMAIS retourné par l'API.
+### `outbox_events`
 
-## 4. marcheci_notifications
+La commande, ses lignes et son événement `order.created` sont enregistrés dans une même transaction PostgreSQL. Le worker Commandes publie les événements en attente à RabbitMQ avec confirmation, puis renseigne `published_at`. Les tentatives et la dernière erreur restent enregistrées pour le diagnostic. La livraison est au moins une fois, pas exactement une fois.
 
-### notifications
-| Colonne | Type | Contraintes |
-|---|---|---|
-| id | INT | PK |
-| order_id | INT | nullable |
-| user_id | INT | nullable |
-| channel | VARCHAR(10) | CHECK dans {EMAIL, SMS} |
-| recipient | VARCHAR(255) | NOT NULL |
-| template | VARCHAR(50) | NOT NULL |
-| status | VARCHAR(15) | CHECK dans {SIMULÉ_ENVOYÉ, ÉCHEC} |
-| payload | JSONB | NOT NULL (corps de l'événement d'origine) |
-| attempts | INT | NOT NULL DEFAULT 1 |
-| created_at | TIMESTAMPTZ | NOT NULL |
+## 4. Notifications (`marcheci_notifications`)
 
-## 5. Règles d'intégrité cross-services
+### `notifications`
 
-- Pas de FK cross-BD : cohérence par id + snapshots (`product_name`, `unit_price_xof`).
-- Stock : source de volution **catalogue uniquement** ; commandes agit via API et annule sa commande en cas d'échec (journalisé).
-- Suppression produit : le sujet impose DELETE ; catalogage soft-delete (`is_active=false`) recommandé pour ne pas briser l'historique commandes — DELETE physique refusé si le produit a déjà été commandé (API catalogue expose `/products/{id}/has-been-ordered` ? Non : coommanages exposent nombres pour éviter le couplage inverse → décision : DELETE systématiquement converti en soft-delete, documenté).
+Les lignes conservent `order_id`, `user_id`, `channel` (`EMAIL` ou `SMS`), `recipient`, `template`, le `payload` JSON, le nombre de tentatives et la date de création. `order_id` et `user_id` sont des identifiants logiques sans clé étrangère entre bases. Le statut `SIMULE_ENVOYE` désigne une notification persistée mais non remise par un fournisseur réel; l’autre statut métier est `ECHEC`.
+
+## 5. Intégrité entre services
+
+- Aucun service ne lit directement la base d’un autre.
+- Commandes récupère nom, prix et disponibilité auprès de Catalogue par HTTP, puis enregistre les instantanés de commande.
+- Les changements de stock passent par l’API Catalogue. Une compensation tente de restaurer le stock si la création ou l’annulation de commande échoue.
+- Les identifiants d’utilisateur, de produit et de commande partagés dans les événements sont des références logiques.
+- Le panier frontend est conservé dans le navigateur (`localStorage`). Les prix et le stock sont revalidés par les services à la création de commande.
+- Les migrations Alembic sont séparées par service; Compose les exécute avant le démarrage des API.
+
+## 6. Limites du modèle métier observé
+
+Le modèle actuel couvre un catalogue commun administré par `ADMIN` et des commandes client. Il ne permet pas d’isoler les produits par commerçant, les droits d’un vendeur, ses images ou ses commandes. La conformité de ce choix au cahier des charges officiel reste à confirmer, car le sujet source n’est pas présent dans le dépôt.

@@ -11,6 +11,7 @@ Idempotent : ne modifie rien si les comptes existent déjà.
 
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, "/app")  # WORKDIR de l'image utilisateurs
 
@@ -38,9 +39,9 @@ def ensure(db, email: str, password: str, full_name: str, role: str) -> None:
 
 def main() -> None:
     admin_email = os.environ["ADMIN_EMAIL"]
-    admin_password = os.environ["ADMIN_PASSWORD"]
+    admin_password = read_secret("ADMIN_PASSWORD")
     svc_email = os.environ["SVC_COMMANDES_EMAIL"]
-    svc_password = os.environ["SVC_COMMANDES_PASSWORD"]
+    svc_password = read_secret("SVC_COMMANDES_PASSWORD")
 
     if len(admin_password) < 8 or len(svc_password) < 8:
         print("[bootstrap] Mots de passe < 8 caractères : motifs de démo refusés")
@@ -53,6 +54,14 @@ def main() -> None:
     finally:
         db.close()
     print("[bootstrap] terminé")
+
+
+def read_secret(name: str) -> str:
+    path = os.environ.get(f"{name}_FILE")
+    value = Path(path).read_text(encoding="utf-8").strip() if path else os.environ.get(name, "")
+    if not value:
+        raise RuntimeError(f"Secret {name} absent ou vide")
+    return value
 
 
 if __name__ == "__main__":

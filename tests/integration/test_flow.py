@@ -149,8 +149,9 @@ def test_catalogue_down_orders_fail_cleanly(stack, auth_tokens):
 def test_notifications_health_and_protection(stack):
     ntf = stack["notifications"]
     r = httpx.get(f"{ntf}/health", timeout=10)
-    assert r.status_code == 200
+    assert r.status_code == 503  # EVENTS_ENABLED=false dans ce test HTTP isolé : Rabbit/consumer indisponibles
     body = r.json()
     assert body["components"]["database"] == "up"
+    assert body["components"]["rabbitmq"] == "down"
     assert body["components"]["consumer"] == "down"  # RabbitMQ absent (sans Docker), documenté
     assert httpx.get(f"{ntf}/notifications", timeout=10).status_code == 401

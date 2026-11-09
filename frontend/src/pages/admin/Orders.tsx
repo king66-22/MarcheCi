@@ -18,20 +18,23 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState<Order[] | null>(null)
   const [page, setPage] = useState(1)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
   const confirm = useConfirm()
 
   const load = useCallback(async () => {
-    setOrders(null)
-    setError(null)
     try {
       const { data } = await ordersApi.all(page)
       setOrders(data.items)
+      setError(null)
     } catch (e) {
       setError(errMessage(e))
+    } finally {
+      setLoading(false)
     }
   }, [page])
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { void load() }, [load])
 
   const transition = (o: Order, next: OrderStatus) => {
@@ -57,8 +60,10 @@ export default function AdminOrders() {
 
       {error && <div className="mt-4"><ErrorBanner message={error} /></div>}
 
-      {orders === null && !error ? (
+      {loading ? (
         <Spinner label="Chargement des commandes…" />
+      ) : error && orders === null ? (
+        <button className="button-secondary mt-4" onClick={() => { setLoading(true); void load() }}>Réessayer</button>
       ) : orders?.length === 0 ? (
         <p className="mt-6 text-sm text-slate-500">Aucune commande enregistrée.</p>
       ) : (
@@ -118,8 +123,8 @@ export default function AdminOrders() {
           </div>
 
           <div className="mt-4 flex items-center justify-center gap-3">
-            <button className="button-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Précédent</button>
-            <button className="button-secondary" disabled={orders !== null && orders.length < 50} onClick={() => setPage((p) => p + 1)}>Suivant →</button>
+            <button className="button-secondary" disabled={page <= 1} onClick={() => { setLoading(true); setPage((p) => p - 1) }}>← Précédent</button>
+            <button className="button-secondary" disabled={orders !== null && orders.length < 50} onClick={() => { setLoading(true); setPage((p) => p + 1) }}>Suivant →</button>
           </div>
         </>
       )}

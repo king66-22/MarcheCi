@@ -4,6 +4,7 @@ import { catalogueApi } from '../api/service'
 import { fcfa, type Product } from '../api/types'
 import { ErrorBanner, Spinner, Toast, errMessage, useConfirm } from '../components/ui'
 import { useCart } from '../context/CartContext'
+import { useAuth } from '../context/AuthContext'
 
 export default function ProductDetail() {
   const { id } = useParams()
@@ -12,59 +13,57 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1)
   const [toast, setToast] = useState<string | null>(null)
   const { add } = useCart()
+  const { isAdmin } = useAuth()
   const navigate = useNavigate()
   const confirm = useConfirm()
 
   useEffect(() => {
-    setProduct(null)
-    setError(null)
     void catalogueApi
       .getProduct(Number(id))
-      .then((r) => setProduct(r.data))
+      .then((r) => { setProduct(r.data); setError(null) })
       .catch((e) => setError(errMessage(e)))
   }, [id])
 
   if (error) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+    <div className="page-width max-w-3xl py-10">
         <ErrorBanner message={error} />
         <Link to="/catalogue" className="button-secondary mt-4">← Retour au catalogue</Link>
       </div>
     )
   }
-  if (!product) return <Spinner label="Produit en cours de préparation…" />
+  if (!product || product.id !== Number(id)) return <Spinner label="Produit en cours de préparation…" />
 
   const restricted = product.stock <= 0
   const maxQty = Math.max(1, product.stock)
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <nav className="mb-4 text-sm text-slate-500" aria-label="Fil d'ariane">
-        <Link to="/catalogue" className="hover:text-terracotta-600">Catalogue</Link> <span aria-hidden>/</span>
-        <span className="text-slate-700"> {product.name}</span>
+    <div className="page-width py-8 sm:py-10">
+      <nav className="mb-5 flex items-center gap-2 text-sm text-slate-500" aria-label="Fil d’ariane">
+        <Link to="/catalogue" className="hover:text-terracotta-600">Le marché</Link><span aria-hidden="true">/</span>
+        <span className="truncate text-slate-700">{product.name}</span>
       </nav>
 
-      <div className="grid gap-8 md:grid-cols-2">
-        <div className="card bg-sable-100">
-          {product.image_url ? (
-            <img src={product.image_url} alt={product.name} className="h-96 w-full object-cover" />
-          ) : (
-            <div className="flex h-96 items-center justify-center text-7xl" aria-hidden>🛍️</div>
-          )}
+      <div className="grid items-start gap-8 md:grid-cols-2 lg:gap-12">
+        <div className="card rounded-3xl bg-sable-100">
+          <img src={product.image_url || '/product-placeholder.svg'} alt={product.image_url ? product.name : ''} className="aspect-[4/3] w-full object-cover" onError={(event) => {
+            if (!event.currentTarget.src.endsWith('/product-placeholder.svg')) event.currentTarget.src = '/product-placeholder.svg'
+          }} />
         </div>
 
-        <div className="flex flex-col gap-4">
-          <h1 className="text-3xl font-extrabold text-marche-800">{product.name}</h1>
-          <p className="text-2xl font-bold text-terracotta-700">{fcfa(product.price_xof)}</p>
-          <p className="text-slate-600">{product.description || 'Un produit du marché d\'Adjamé.'}</p>
+        <div className="flex flex-col items-start gap-4 py-1">
+          <p className="eyebrow">Sélection de la coopérative</p>
+          <h1 className="font-display text-4xl font-bold leading-tight text-marche-900 sm:text-5xl">{product.name}</h1>
+          <p className="text-3xl font-extrabold tracking-tight text-terracotta-700">{fcfa(product.price_xof)}</p>
+          <p className="max-w-xl whitespace-pre-line leading-7 text-slate-600">{product.description || 'Un produit du marché d’Adjamé, proposé par la coopérative.'}</p>
 
           {!restricted ? (
-            <p className="text-sm text-green-700">✓ En stock : {product.stock} disponibles</p>
+            <p className="inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1.5 text-sm font-semibold text-green-800"><span aria-hidden>✓</span> Disponible · {product.stock} en stock</p>
           ) : (
-            <p className="text-sm font-semibold text-red-600">Épuisé — contactez la coopérative pour le réapprovisionnement.</p>
+            <p className="rounded-full bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700">Épuisé — commande indisponible pour le moment.</p>
           )}
 
-          <div className="mt-2 flex items-center gap-3">
+          <div className="mt-1 flex items-center gap-3">
             <label htmlFor="qty" className="text-sm font-medium">Quantité</label>
             <input
               id="qty"
@@ -74,13 +73,13 @@ export default function ProductDetail() {
               value={quantity}
               disabled={restricted}
               onChange={(e) => setQuantity(Math.min(maxQty, Math.max(1, Number(e.target.value) || 1)))}
-              className="w-20 rounded-lg border border-sable-200 px-3 py-2 text-center"
+              className="h-12 w-24 rounded-xl border border-sable-200 bg-white px-3 text-center"
             />
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex w-full flex-wrap gap-3">
             <button
-              className="button-primary flex-1 justify-center"
+              className="button-primary flex-1"
               disabled={restricted}
               onClick={() => {
                 const err = add(product, quantity)
@@ -88,9 +87,9 @@ export default function ProductDetail() {
                 else setToast('Ajouté au panier ✓')
               }}
             >
-              Ajouter au panier
+              Ajouter au panier · {fcfa(product.price_xof * quantity)}
             </button>
-            <button
+            {isAdmin && <button
               className="button-danger justify-center"
               onClick={() =>
                 confirm(
@@ -106,8 +105,9 @@ export default function ProductDetail() {
               title="Action réservée à l'administration"
             >
               Supprimer
-            </button>
+            </button>}
           </div>
+          <p className="mt-2 border-t border-sable-200 pt-4 text-xs leading-5 text-slate-500">Les montants et le stock affichés sont vérifiés auprès du catalogue lorsque vous passez commande. Le paiement en ligne n’est pas activé.</p>
         </div>
       </div>
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}

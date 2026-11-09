@@ -8,19 +8,20 @@ export default function AdminUsers() {
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async (page: number) => {
-    setUsers(null)
     try {
       const { data } = await usersApi.listAll(page)
       setUsers(data)
+      setError(null)
     } catch (e) {
       setError(errMessage(e as unknown))
     }
   }, [])
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { void load(1) }, [load])
 
   if (error) {
-    return <div className="mx-auto max-w-3xl"><ErrorBanner message={error} /></div>
+    return <div className="mx-auto max-w-3xl"><ErrorBanner message={error} /><button className="button-secondary mt-4" onClick={() => void load(1)}>Réessayer</button></div>
   }
   if (users === null) return <Spinner label="Chargement des comptes…" />
 

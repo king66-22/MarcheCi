@@ -7,7 +7,7 @@ interface AuthState {
   loading: boolean
   isAdmin: boolean
   login: (email: string, password: string) => Promise<void>
-  register: (data: { email: string; password: string; full_name: string }) => Promise<void>
+  register: (data: { email: string; password: string; full_name: string; phone?: string }) => Promise<void>
   logout: () => void
   refresh: () => Promise<void>
 }
@@ -15,16 +15,15 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null)
 const TOKEN_KEY = 'marcheci_token'
 
+function hasStoredToken(): boolean {
+  try { return Boolean(localStorage.getItem(TOKEN_KEY)) } catch { return false }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(hasStoredToken)
 
   const refresh = useCallback(async () => {
-    if (!localStorage.getItem(TOKEN_KEY)) {
-      setUser(null)
-      setLoading(false)
-      return
-    }
     try {
       const { data } = await usersApi.me()
       setUser(data)
@@ -36,7 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  useEffect(() => { void refresh() }, [refresh])
+  // oxlint-disable-next-line react/set-state-in-effect
+  useEffect(() => { if (hasStoredToken()) void refresh() }, [refresh])
 
   const login = useCallback(async (email: string, password: string) => {
     const { data } = await usersApi.login(email, password)
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(me.data)
   }, [])
 
-  const register = useCallback(async (payload: { email: string; password: string; full_name: string }) => {
+  const register = useCallback(async (payload: { email: string; password: string; full_name: string; phone?: string }) => {
     await usersApi.register(payload)
     await login(payload.email, payload.password)
   }, [login])
@@ -65,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// oxlint-disable-next-line react/only-export-components
 export function useAuth(): AuthState {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth hors AuthProvider')

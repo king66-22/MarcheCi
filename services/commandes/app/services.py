@@ -14,6 +14,7 @@ from .models import (
     ALLOWED_TRANSITIONS,
     Order,
     OrderItem,
+    OutboxEvent,
     STATUS_ANNULEE,
     STATUS_EN_ATTENTE,
     STATUS_TERMINAL,
@@ -55,6 +56,8 @@ def get_publisher() -> OrderEventPublisher:
             exchange=s.rabbitmq_exchange,
             queue=s.orders_queue,
             dlq=s.orders_dlq,
+            max_retries=s.consumer_max_retries,
+            retry_backoff_seconds=s.consumer_retry_backoff_seconds,
         )
         _publisher.enabled = s.events_enabled
     return _publisher
@@ -214,6 +217,20 @@ def create_order(
     for item in line_items:
         order.items.append(item)
     try:
+        db.flush()
+        event_payload = {
+            "event": "order.created",
+            "order_id": order.id,
+            "user_id": order.user_id,
+            "total_xof": order.total_xof,
+            "status": order.status,
+            "items": [
+                {"product_id": it.product_id, "quantity": it.quantity,
+                 "unit_price_xof": it.unit_price_xof, "product_name": it.product_name}
+                for it in order.items
+            ],
+        }
+        db.add(OutboxEvent(event_type="order.created", payload=event_payload))
         db.commit()
     except Exception as exc:
         db.rollback()
@@ -228,19 +245,6 @@ def create_order(
             )
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Commande non enregistrée") from exc
 
-    event_payload = {
-        "event": "order.created",
-        "order_id": order.id,
-        "user_id": order.user_id,
-        "total_xof": order.total_xof,
-        "status": order.status,
-        "items": [
-            {"product_id": it.product_id, "quantity": it.quantity,
-             "unit_price_xof": it.unit_price_xof, "product_name": it.product_name}
-            for it in order.items
-        ],
-    }
-    publisher.publish_order_created(event_payload)
     logger.info(
         "event",
         extra={"event": "order_created", "order_id": order.id, "user_id": user_id, "total_xof": total},

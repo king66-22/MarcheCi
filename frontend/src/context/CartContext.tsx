@@ -42,25 +42,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const add = useCallback((product: Product, quantity = 1): string | null => {
     if (product.stock <= 0) return 'Produit momentanément indisponible'
-    let error: string | null = null
-    setLines((prev) => {
-      const existing = prev.find((l) => l.product.id === product.id)
-      const current = existing?.quantity ?? 0
-      const target = current + quantity
-      if (target > product.stock) {
-        if (existing) {
-          return prev.map((l) => (l.product.id === product.id ? { ...l, quantity: product.stock } : l))
-        }
-        error = `Stock insuffisant : ${product.stock} maximum`
-        return prev
-      }
+    const existing = lines.find((line) => line.product.id === product.id)
+    const requestedQuantity = (existing?.quantity ?? 0) + quantity
+    if (requestedQuantity > product.stock) {
       if (existing) {
-        return prev.map((l) => (l.product.id === product.id ? { ...l, quantity: target } : l))
+        setLines((previous) => previous.map((line) => line.product.id === product.id
+          ? { ...line, quantity: Math.min(product.stock, line.quantity) }
+          : line))
       }
+      return `Stock insuffisant : ${product.stock} maximum`
+    }
+    setLines((prev) => {
+      const line = prev.find((item) => item.product.id === product.id)
+      const target = (line?.quantity ?? 0) + quantity
+      if (target > product.stock) {
+        return line
+          ? prev.map((item) => item.product.id === product.id ? { ...item, quantity: product.stock } : item)
+          : prev
+      }
+      if (line) return prev.map((item) => item.product.id === product.id ? { ...item, quantity: target } : item)
       return [...prev, { product, quantity: target }]
     })
-    return error
-  }, [])
+    return null
+  }, [lines])
 
   const setQuantity = useCallback((productId: number, quantity: number) => {
     setLines((prev) =>
@@ -91,6 +95,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// oxlint-disable-next-line react/only-export-components
 export function useCart(): CartState {
   const ctx = useContext(CartContext)
   if (!ctx) throw new Error('useCart hors CartProvider')

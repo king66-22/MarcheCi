@@ -18,18 +18,19 @@ export default function AdminProducts() {
   const confirm = useConfirm()
 
   const load = useCallback(async () => {
-    setProducts(null)
     try {
       const list = await catalogueApi.listProducts({ page_size: 100 })
       setProducts(list.data.items)
       setTotal(list.data.total)
       const cats = await catalogueApi.listCategories()
       setCategories(cats.data)
+      setError(null)
     } catch (e) {
       setError(errMessage(e))
     }
   }, [])
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { void load() }, [load])
 
   const startEdit = (p: Product) => {
@@ -178,7 +179,9 @@ export default function AdminProducts() {
         </div>
       </form>
 
-      {products === null ? (
+      {error && products === null ? (
+        <div className="mt-5"><ErrorBanner message={error} /><button className="button-secondary mt-3" onClick={() => void load()}>Réessayer</button></div>
+      ) : products === null ? (
         <Spinner label="Chargement du catalogue…" />
       ) : (
         <>

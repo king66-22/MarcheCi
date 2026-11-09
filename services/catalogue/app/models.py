@@ -19,7 +19,7 @@ class Category(Base):
     slug: Mapped[str] = mapped_column(String(80), unique=True, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
 
-    # Xiao cascade : la suppression d'une catégorie met category_id à NULL côté produit
+    # À la suppression d'une catégorie, la relation conserve les produits sans catégorie.
     products: Mapped[list["Product"]] = relationship(back_populates="category")
 
 
@@ -42,4 +42,4 @@ class Product(Base):
 
     category: Mapped[Category | None] = relationship(back_populates="products")
 
-    # Military check : price >= 0 imposé par schema Pydantic côté API
+    # Le schéma Pydantic de l'API impose price_xof >= 0.
