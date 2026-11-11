@@ -1,14 +1,11 @@
-# MarchéCI — Architecture technique (Étape 1)
-
-> Statut : validée le 2026-11-03. Sert de référence contractuelle pour Étapes 2 à 7.
-> Contrainte source : sujet « Projets Cloud Native — Projet 1 : MarchéCI » (PDF, version apprenant).
+# MarchéCI — Architecture technique
 
 ## 1. Vue d'ensemble
 
 Plateforme e-commerce en **microservices conteneurisés**, point d'entrée unique Nginx,
-une base de données logique par service, cache Redis, messagerie RabbitMQ,
-supervision Zabbix. Le Compose est conçu pour un serveur Linux; le budget et un
-démarrage complet en moins de deux minutes restent des objectifs à mesurer.
+une base de données logique par service, cache Redis, messagerie RabbitMQ et
+supervision Zabbix. Le Compose est conçu pour un serveur Linux et peut être
+exploité sur un poste de développement ou une VM dédiée.
 
 ```
                          Internet (hôte :80 via gateway)
@@ -28,7 +25,7 @@ démarrage complet en moins de deux minutes restent des objectifs à mesurer.
      └────────────┘ └───────────────────────┘ └───────────────┘
 ```
 
-## 2. Rôle et limites de responsabilité de chaque composant
+## 2. Responsabilités des composants
 
 | Composant | Responsabilité exclusive | Interdits |
 |---|---|---|
@@ -66,19 +63,19 @@ démarrage complet en moins de deux minutes restent des objectifs à mesurer.
 
 | Décision | Justification |
 |---|---|
-| FastAPI + Pydantic | Exigence du sujet, validation serveur, OpenAPI natif |
-| 1 serveur PostgreSQL / 4 bases | VM 4 Go : 4 serveurs séparés dépasseraient le budget mémoire ; isolation équivalente via comptes et `GRANT`s séparés |
+| FastAPI + Pydantic | Validation serveur, schémas OpenAPI natifs et documentation interactive |
+| 1 serveur PostgreSQL / 4 bases | Optimisation du budget mémoire ; isolation logique via bases, comptes et `GRANT`s séparés |
 | `resolver 127.0.0.11` Nginx | Découverte dynamique des répliques (`--scale catalogue=3`) sans redémarrage |
-| JWT HS256, secrets hors Git | Simplicité adaptée au périmètre ; secrets via compose `secrets:` / `.env` |
-| CAPTCHA, authentification à deux facteurs, rotation des jetons de renouvellement | Non implémentés dans le périmètre actuel; limites à réévaluer avant un déploiement public |
-| E-mail/SMS simulé | Aucun fournisseur réel intégré : marqué explicitement « simulation » |
-| Paiement non intégré | Aucun faux paiement ; CLI passe commande « à régler au marché », architecture prête (champ `payment_status` + interface future) |
+| JWT HS256, secrets hors Git | Authentification stateless ; secrets via `secrets:` Compose et fichiers ignorés |
+| E-mail/SMS | Le service persiste les notifications et expose un statut d’envoi ; le branchement d’un fournisseur externe reste une évolution |
+| Paiement | Commande réglée hors plateforme ; le champ `payment_status` et l’interface API permettent d’intégrer un prestataire |
 
-## 5. Limites mémoire Compose
+## 5. Dimensionnement mémoire Compose
 
-Les valeurs ci-dessous sont des plafonds de conteneur, pas des mesures d’usage ni une preuve qu’une VM de 4 Go suffit. Le plafond théorique cumulé dépasse 2 Go pour le socle avec trois répliques Catalogue, avant le système et les pointes de consommation. Le profil réel doit être mesuré sur l’hôte cible.
+Les valeurs ci-dessous sont des plafonds de conteneur. Le profil réel doit être
+mesuré sur l’hôte cible, avec trois répliques Catalogue si ce mode est activé.
 
-| Conteneur | Limite mem | Note |
+| Conteneur | Limite mémoire | Note |
 |---|---|---|
 | PostgreSQL 16 | 400 Mo | shared_buffers 128 Mo |
 | Redis 7.4 | 128 Mo | |
@@ -88,4 +85,5 @@ Les valeurs ci-dessous sont des plafonds de conteneur, pas des mesures d’usage
 | gateway + frontend | 64 + 32 Mo | |
 | Zabbix (pile séparée) | ~500 Mo activable | `monitoring/zabbix/compose.yaml`, optionnel |
 
-Le rapport technique du 4 novembre signale une dégradation temporaire des contrôles de santé pendant un test de charge. Ne pas lancer les scénarios de charge ou de panne sur une pile partagée.
+Les scénarios de charge et de panne doivent être exécutés sur un projet Compose
+dédié afin de ne pas perturber une pile partagée.

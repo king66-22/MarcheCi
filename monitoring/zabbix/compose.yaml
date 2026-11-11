@@ -1,5 +1,5 @@
 # ============================================================
-# Pile de supervision Zabbix (Étape 6) — NE FAIT PAS PARTIE du `compose up`
+# Pile de supervision Zabbix — NE FAIT PAS PARTIE du `compose up`
 #
 # Usage :
 #   docker compose -f monitoring/zabbix/compose.yaml up -d  (démarre la pile)

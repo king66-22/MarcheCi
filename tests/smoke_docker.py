@@ -1,4 +1,4 @@
-"""Test de fumée Étape 4 : plateforme docker compose complète via la gateway Nginx.
+"""Test de fumée Docker : plateforme docker compose complète via la gateway Nginx.
 
 Usage : .venv\\Scripts\\python.exe tests\\smoke_docker.py
 Vérifie, à travers UNIQUEMENT le port 80 (exigence réseau) :

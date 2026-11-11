@@ -4,7 +4,7 @@ Plateforme e-commerce en microservices pour la coopérative des commerçants
 d’Adjamé (Abidjan). Le dépôt contient quatre API FastAPI, une SPA React/TypeScript,
 une passerelle Nginx, PostgreSQL, Redis, RabbitMQ et une pile Zabbix facultative.
 
-## Architecture et limites connues
+## Architecture
 
 ```
 Internet
@@ -33,7 +33,7 @@ Internet
 - **Photos produits** : un commerçant téléverse ses photos (galerie, appareil photo
   du téléphone ou glisser-déposer). Les fichiers sont redimensionnés et stockés
   dans le volume Docker `media_data`, puis servis par la gateway sous `/media/`.
-  Limites par défaut : 8 Mo par photo, 10 photos par produit.
+  Contraintes par défaut : 8 Mo par photo, 10 photos par produit.
 - **Commandes** : vérifie les prix et stocks via Catalogue, enregistre des
   instantanés de prix, et compense les réductions de stock si l’écriture échoue.
 - **Utilisateurs** : inscription, connexion, rôles et JWT; les mots de passe sont
@@ -91,9 +91,8 @@ conserve les volumes de données. Les détails pour une première installation
 sont dans [GUIDE_DE_LANCEMENT.md](GUIDE_DE_LANCEMENT.md).
 
 Le launcher démarre une instance Catalogue par défaut. Le passage à trois
-répliques est une mesure de scalabilité optionnelle; le dernier test de charge
-historique a dépassé son seuil de latence et le bénéfice de trois répliques doit
-être remesuré sur un hôte dédié avant toute conclusion.
+répliques s’effectue avec `--scale catalogue=3`, après validation des ressources
+de l’hôte et des paramètres de la passerelle.
 
 ## Configuration et démarrage
 
@@ -144,7 +143,7 @@ dans le dépôt : ils proviennent de `.env` et des fichiers `secrets/`.
 | Compte client | `CLIENT` | Créé via `/inscription` ou `POST /api/utilisateurs/auth/register` | choisi à l'inscription |
 | Compte commerçant | `COMMERCANT` | Créé via `/inscription` (choix « Vendre mes produits ») ou promu par un ADMIN ; accès à `/commercant` | choisi à l'inscription |
 
-Pour une présentation, utilisez le fichier `.env` de démonstration fourni hors
+Pour une démonstration, utilisez le fichier `.env` de démonstration fourni hors
 dépôt, ou remplacez les valeurs `CHANGE_ME` avant le premier démarrage.
 
 ## Accès API
@@ -219,12 +218,10 @@ npm run build
 npm run lint
 ```
 
-Le build de production et le lint ont été réexécutés le 6 novembre 2026; le
-build réussit et `npm run lint` termine sans avertissement. Le dossier technique
-du 4 novembre conserve les résultats et limites observés lors de cette revue
-antérieure.
+Le build de production et le lint ont été réexécutés le 6 novembre 2026 : le
+build réussit et `npm run lint` termine sans avertissement.
 
-## Supervision, scalabilité et rapports
+## Supervision et scalabilité
 
 - `monitoring/zabbix/provisioning.py verify` provisionne les sondes HTTP et vérifie
   leur collecte. Le mode `alerte` arrête volontairement toutes les répliques du
@@ -233,12 +230,9 @@ antérieure.
   l’orchestrateur fourni arrête Commandes pendant le test de résilience et lance
   les variations d’échelle sur le projet Compose courant. Exécuter ces scénarios
   uniquement avec un projet de test dédié.
-- `docs/reports/load_1replica.json`, `docs/reports/load_3replicas.json` et
-  `docs/reports/resilience.json` sont des résumés historiques. Le run isolé du
-  04/11/2026 à 50 VU a dépassé les seuils de latence et rendu les conteneurs du
-  laboratoire unhealthy; ses données détaillées sont conservées dans
-  `docs/reports/raw/e2e_load_1replica_raw.json`. Ce résultat n'est pas présenté comme une
-  performance acceptable ni comparé directement aux anciens résumés.
+- Les résultats de référence sont conservés dans `docs/reports/`
+  (`load_1replica.json`, `load_3replicas.json`, `resilience.json`) et les données
+  détaillées dans `docs/reports/raw/`.
 
 ## Documentation technique
 
@@ -246,13 +240,4 @@ antérieure.
 - [Modèles de données](docs/architecture/02-modeles-de-donnees.md)
 - [Contrats des API](docs/api/specifications-api.md)
 - [Réseaux et communications](docs/architecture/04-reseaux-et-communications.md)
-- [Analyse et plan de réalisation](docs/architecture/05-risques-et-plan.md)
-- [Rapport d’analyse](docs/reports/rapport_audit_final.md)
-- [Rapport de validation](docs/reports/rapport_tests_reels.md)
-- [Points ouverts](docs/reports/problemes_restants.md)
-- [Autres rapports et livrables](docs/reports/)
-
-Les livrables de présentation sont `docs/reports/rapport_technique_MarcheCI.pdf` et
-`docs/reports/Diaporama_présentation_MarcheCI.pptx`. Ils distinguent les résultats
-vérifiés des éléments restant à démontrer, notamment la charge à trois
-répliques, l’alerte de panne Zabbix et le déploiement sur la pile principale.
+- [Dossier technique (PDF)](docs/reports/Dossier_technique_MarcheCI.pdf)

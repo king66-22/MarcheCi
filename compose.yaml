@@ -206,7 +206,7 @@ services:
     mem_limit: 224m
     # PAS de ports publiés et PAS de container_name : indispensable pour
     # `docker compose up -d --scale catalogue=3` (DNS round-robin via Nginx).
-    # Pas de deploy.replicas : c'est --scale qui fait foi (Étape 5).
+    # Pas de deploy.replicas : c'est --scale qui fait foi.
 
   commandes:
     image: marcheci/commandes

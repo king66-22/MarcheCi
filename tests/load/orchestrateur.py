@@ -1,4 +1,4 @@
-"""Orchestrateur Étape 5 : lancement de k6 (image grafana/k6) + chaos.
+"""Orchestrateur de charge : lancement de k6 (image grafana/k6) + chaos.
 
 Exécuter depuis la racine : .venv\\Scripts\\python.exe tests\\load\\orchestrateur.py
  suppose la plateforme docker compose UP (référentiel : la gateway sur le port 80).
@@ -140,4 +140,4 @@ if __name__ == "__main__":
         mode_charge()
     if mode in ("resilience", "tout"):
         mode_resilience()
-    print("\nPHASE 5 — ORCHESTRATION TERMINÉE")
+    print("\nORCHESTRATION TERMINÉE")

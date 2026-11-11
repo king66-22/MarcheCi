@@ -100,6 +100,16 @@ Les lignes conservent `order_id`, `user_id`, `channel` (`EMAIL` ou `SMS`), `reci
 - Le panier frontend est conservé dans le navigateur (`localStorage`). Les prix et le stock sont revalidés par les services à la création de commande.
 - Les migrations Alembic sont séparées par service; Compose les exécute avant le démarrage des API.
 
-## 6. Limites du modèle métier observé
+## 6. Modèle multi-vendeur
 
-Le modèle actuel couvre un catalogue commun administré par `ADMIN` et des commandes client. Il ne permet pas d’isoler les produits par commerçant, les droits d’un vendeur, ses images ou ses commandes. La conformité de ce choix au cahier des charges officiel reste à confirmer, car le sujet source n’est pas présent dans le dépôt.
+Le catalogue prend en charge plusieurs commerçants :
+
+- un compte `COMMERCANT` est créé à l’inscription ou promu par un `ADMIN` ;
+- `products.owner_id` référence l’identifiant du commerçant dans le service Utilisateurs, sous forme de clé logique indexée, sans contrainte SQL inter-base ;
+- un commerçant ne peut modifier ou supprimer que les produits dont il est propriétaire ;
+- `GET /products/mine` retourne son catalogue, y compris les produits désactivés ;
+- un `ADMIN` conserve l’accès global et peut gérer les produits historiques dont `owner_id` est nul ;
+- les photos sont rattachées au produit par `product_images`, avec une couverture reprise dans `products.image_url`.
+
+Cette séparation préserve l’autonomie des bases : Catalogue ne dépend pas du
+schéma Utilisateurs et l’intégrité des références est contrôlée par l’API.

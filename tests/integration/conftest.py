@@ -1,6 +1,6 @@
 """Fixtures d'intégration : chaque service est un VRAI process uvicorn distinct.
 
-RabbitMQ et Redis ne sont pas disponibles localement sans Docker (Étape 4/5) :
+RabbitMQ et Redis ne sont pas disponibles localement sans Docker :
 REDIS_ENABLED=false et EVENTS_ENABLED=false pour tous les services — le test
 d'intégration couvre la communication HTTP réelle entre services.
 """

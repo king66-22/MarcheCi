@@ -1,4 +1,4 @@
-"""Provisionnement Zabbix MarchéCI (Étape 6) — tout via l'API JSON-RPC.
+"""Provisionnement Zabbix MarchéCI — tout via l'API JSON-RPC.
 
 1. crée le groupe + hôte "MarchéCI"
 2. items HTTP agent (GET) sur les /health des 5 cibles :
@@ -262,4 +262,4 @@ if __name__ == "__main__":
         demo_alerte()
     elif mode == "tout":
         demo_alerte()
-    print("\nPHASE 6 TERMINÉE")
+    print("\nPROVISIONNEMENT TERMINÉ")

@@ -1,6 +1,6 @@
-# MarchéCI — Spécification des API (Étape 1, niveau contractuel)
+# MarchéCI — Spécification des API
 
-Version détaillée complétée en Étape 7 (OpenAPI par service, auto-découverte via `/docs` FastAPI).
+Les schémas OpenAPI sont générés par chaque service et exposés via `/docs/{service}/`.
 Conventions globales : JSON ; timestamps ISO 8601 UTC ; erreurs `{"detail": "..."}` ;
 authentification `Authorization: Bearer <JWT>` ; montants en FCFA entiers.
 

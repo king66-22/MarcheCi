@@ -11,7 +11,7 @@
  *   VUS      — pic de virtual users (défaut 50)
  *   RAMP     — montée en charge en secondes (défaut 20)
  *   HOLD     — durée du palier (défaut 40)
- *   OUT_FILE — nom du fichier résumé écrit dans /results (rapport Étape 5)
+ *   OUT_FILE — nom du fichier résumé écrit dans /results
  */
 
 import http from 'k6/http'
@@ -71,7 +71,7 @@ export default function () {
   sleep(1)
 }
 
-/** Résumé structuré pour le rapport de charge (Étape 5). */
+/** Résumé structuré pour le rapport de charge. */
 export function handleSummary(data) {
   const trendInfo = (name) => {
     const v = data.metrics[name]?.values

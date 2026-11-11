@@ -1,4 +1,4 @@
-"""Test de fumée Étape 3 : vite dev + 4 microservices réels, proxy /api/* vérifié.
+"""Test de fumée frontend : vite dev + 4 microservices réels, proxy /api/* vérifié.
 
 Usage : .venv\\Scripts\\python.exe tests\\smoke_frontend.py
 Démarre catalogue(5211), utilisateurs(5212), commandes(5213), notifications(5215)

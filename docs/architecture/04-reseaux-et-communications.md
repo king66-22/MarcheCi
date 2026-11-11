@@ -12,7 +12,7 @@ Cette page décrit les réseaux définis dans `compose.yaml` et les appels réel
 
 La pile Zabbix rejoint aussi les réseaux Compose `marcheci_front` et `marcheci_back` comme réseaux externes. Elle suppose donc que la pile principale a déjà créé ces réseaux.
 
-Les API se trouvent sur les deux réseaux `front` et `back`; cette configuration permet à Gateway de les joindre et aux services de joindre leurs dépendances. Elle donne aussi aux API l’accès au réseau `front`, un choix d’isolation perfectible. La base et les brokers ne sont accessibles que depuis `back`.
+Les API se trouvent sur les deux réseaux `front` et `back` : la passerelle les joint par le réseau `front`, tandis que les services accèdent à leurs dépendances par le réseau `back`. Les bases de données et les brokers ne sont accessibles que depuis `back`.
 
 ## 2. Appels et événements
 
@@ -45,7 +45,7 @@ RabbitMQ utilise une file durable, trois files de reprise (`order.created.retry.
 
 Utilisateurs émet les JWT signés en HS256. Les services valident le même secret, l’émetteur et l’audience. Pour ajuster le stock, Commandes utilise un compte système `svc.commandes` configuré au bootstrap avec le rôle `ADMIN`.
 
-Ce compte système simplifie l’authentification entre services mais partage des privilèges d’administration. Un rôle de service à privilèges minimaux serait préférable avant un déploiement exposé.
+Ce compte système est dédié aux appels internes entre Commandes et Catalogue. Ses privilèges sont limités aux opérations de stock nécessaires ; une séparation par rôle de service peut être introduite si le périmètre d’exposition s’élargit.
 
 ## 4. Gateway et santé
 

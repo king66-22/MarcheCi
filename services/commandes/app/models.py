@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
 
-# Statuts autorisés (exigence sujet)
+# Statuts autorisés
 STATUS_EN_ATTENTE = "EN_ATTENTE"
 STATUS_CONFIRMEE = "CONFIRMEE"
 STATUS_EN_PREPARATION = "EN_PREPARATION"
