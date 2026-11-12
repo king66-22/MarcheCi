@@ -40,6 +40,9 @@ htmlcov/
 .benchmarks/
 load-results/*.raw
 
+# ---- Binaires téléchargés par les lanceurs (cloudflared, etc.) ----
+tools/
+
 # ---- OS ----
 .DS_Store
 Thumbs.db

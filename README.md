@@ -170,6 +170,33 @@ si PostgreSQL, RabbitMQ, Catalogue ou le consommateur dont ils dépendent sont
 indisponibles. Catalogue traite Redis comme un cache facultatif et signale son
 état séparément.
 
+## Outils de diagnostic (accès local)
+
+Deux ports sont publiés, uniquement sur la boucle locale de la machine
+(`127.0.0.1`) : ils ne sont jamais joignables depuis le réseau ou Internet.
+
+| Outil | Adresse | Identifiants |
+| --- | --- | --- |
+| PostgreSQL (pgAdmin 4, DBeaver, psql) | `127.0.0.1:5432` | un utilisateur par base : `cat_svc`, `cmd_svc`, `usr_svc`, `ntf_svc` (mots de passe dans `secrets/*_db_password.secret`) |
+| Interface RabbitMQ | http://127.0.0.1:15672 | `RABBITMQ_USER` / `RABBITMQ_PASSWORD` de `.env` |
+
+Bases disponibles sur le même serveur : `marcheci_catalogue`,
+`marcheci_commandes`, `marcheci_utilisateurs`, `marcheci_notifications`.
+Pour un compte ayant accès à tout, utiliser le superutilisateur
+`POSTGRES_OWNER_USER` et son mot de passe `secrets/postgres_owner_password.secret`.
+Les numéros de port hôte se changent dans `.env` (`POSTGRES_HOST_PORT`,
+`RABBITMQ_MANAGEMENT_PORT`).
+
+## Publication temporaire (Cloudflare Tunnel)
+
+`launcher/lien-public.bat` ouvre un tunnel Cloudflare vers `http://localhost` et
+affiche une adresse `https://…trycloudflare.com` utilisable depuis n'importe quel
+navigateur. La pile Docker et l'ordinateur doivent rester allumés ; l'adresse
+change à chaque lancement et le tunnel se ferme avec `Ctrl+C`.
+
+Ce mode sert aux démonstrations : il expose l'application à Internet sans
+contrôle d'accès supplémentaire, en dehors des comptes de l'application.
+
 ## Tests et vérifications
 
 Lancer les suites unitaires depuis la racine du dépôt. Chaque suite importe le

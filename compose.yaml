@@ -41,6 +41,10 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    # Accès local pour pgAdmin/psql : la publication reste limitée à la boucle
+    # locale (127.0.0.1), jamais au réseau. Aucun port n'est ouvert publiquement.
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     networks: [back]
     secrets: [postgres_owner_password, catalogue_db_password, commandes_db_password, utilisateurs_db_password, notifications_db_password]
     mem_limit: 384m
@@ -72,6 +76,10 @@ services:
     secrets: [rabbitmq_password]
     volumes:
       - rabbitdata:/var/lib/rabbitmq
+    # Interface d'administration RabbitMQ, accessible uniquement depuis la machine
+    # hôte (http://127.0.0.1:15672). L'AMQP (5672) reste interne au réseau Docker.
+    ports:
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     networks: [back]
     mem_limit: 256m
     healthcheck:
