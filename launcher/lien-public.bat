@@ -26,7 +26,9 @@ if errorlevel 1 (
 rem --- cloudflared : deja installe, sinon tools\, sinon telechargement.
 set "CLOUDFLARED="
 where cloudflared >nul 2>&1 && set "CLOUDFLARED=cloudflared"
-if not defined CLOUDFLARED if exist "tools\cloudflared.exe" set "CLOUDFLARED=tools\cloudflared.exe"
+if not defined CLOUDFLARED if exist "%ProgramFiles(x86)%\cloudflared\cloudflared.exe" set "CLOUDFLARED=%ProgramFiles(x86)%\cloudflared\cloudflared.exe"
+if not defined CLOUDFLARED if exist "%ProgramFiles%\cloudflared\cloudflared.exe" set "CLOUDFLARED=%ProgramFiles%\cloudflared\cloudflared.exe"
+if not defined CLOUDFLARED if exist "%~dp0..\tools\cloudflared.exe" set "CLOUDFLARED=%~dp0..\tools\cloudflared.exe"
 if not defined CLOUDFLARED (
   echo Telechargement de cloudflared ^(~40 Mo, une seule fois^)...
   powershell -NoProfile -Command "New-Item -ItemType Directory -Force tools | Out-Null; Invoke-WebRequest -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile 'tools\cloudflared.exe'"

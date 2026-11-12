@@ -191,8 +191,10 @@ Les numéros de port hôte se changent dans `.env` (`POSTGRES_HOST_PORT`,
 
 `launcher/lien-public.bat` ouvre un tunnel Cloudflare vers `http://localhost` et
 affiche une adresse `https://…trycloudflare.com` utilisable depuis n'importe quel
-navigateur. La pile Docker et l'ordinateur doivent rester allumés ; l'adresse
-change à chaque lancement et le tunnel se ferme avec `Ctrl+C`.
+navigateur. Un raccourci `Lien-public.bat` se trouve à la racine du projet et un
+raccourci de bureau est fourni pour un lancement en double-clic. La pile Docker et
+l'ordinateur doivent rester allumés ; l'adresse change à chaque lancement et le
+tunnel se ferme avec `Ctrl+C`.
 
 Ce mode sert aux démonstrations : il expose l'application à Internet sans
 contrôle d'accès supplémentaire, en dehors des comptes de l'application.
