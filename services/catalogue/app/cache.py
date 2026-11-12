@@ -4,6 +4,7 @@ Le cache est optionnel : si Redis est absent, le service continue en mode dégra
 """
 
 import logging
+from functools import lru_cache
 from typing import Any
 
 from redis import Redis
@@ -73,7 +74,11 @@ class ProductCache:
             logger.warning("Invalidation cache échouée: %s", exc)
 
 
+@lru_cache(maxsize=1)
 def get_product_cache() -> ProductCache:
+    """Client Redis unique par processus (le pool de connexions redis-py est
+    thread-safe). Sans ce cache, chaque requête ouvrait une connexion Redis
+    et payait un PING de contrôle avant la lecture."""
     settings = get_settings()
     return ProductCache(
         url=settings.redis_url,
