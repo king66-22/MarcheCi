@@ -102,4 +102,4 @@ volumes:
 
 secrets:
   zabbix_db_password:
-    file: ./secrets/zabbix_db_password.secret
+    file: ../../secrets/zabbix_db_password.secret

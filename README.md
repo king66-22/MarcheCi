@@ -124,6 +124,7 @@ de l’hôte et des paramètres de la passerelle.
    .\.venv\Scripts\python.exe monitoring\zabbix\configure_zabbix_admin.py
    $env:ZABBIX_API_URL = 'http://127.0.0.1:8090/api_jsonrpc.php'
    .\.venv\Scripts\python.exe monitoring\zabbix\provisioning.py verify
+   .\.venv\Scripts\python.exe monitoring\zabbix\dashboard.py
    ```
 
    L’interface est disponible sur `http://127.0.0.1:8090` avec les paramètres
@@ -171,22 +172,24 @@ indisponibles. Catalogue traite Redis comme un cache facultatif et signale son
 
 ## Tests et vérifications
 
-Lancer les suites de service (les tests Commandes, Utilisateurs et Notifications
-importent aussi `conftest.py` depuis `tests/`) :
+Lancer les suites unitaires depuis la racine du dépôt. Chaque suite importe le
+code du service (`services/<service>`) et son `conftest.py`
+(`tests/unit/<service>`) via `PYTHONPATH` :
 
 ```powershell
-Set-Location services/catalogue
-..\..\.venv\Scripts\pytest.exe -q -p no:cacheprovider
-Set-Location ../commandes
-$env:PYTHONPATH = (Join-Path (Get-Location) 'tests')
-..\..\.venv\Scripts\pytest.exe -q -p no:cacheprovider
-Set-Location ../utilisateurs
-$env:PYTHONPATH = (Join-Path (Get-Location) 'tests')
-..\..\.venv\Scripts\pytest.exe -q -p no:cacheprovider
-Set-Location ../notifications
-$env:PYTHONPATH = (Join-Path (Get-Location) 'tests')
-..\..\.venv\Scripts\pytest.exe -q -p no:cacheprovider
-Set-Location ../..
+$env:PYTHONPATH = "services\catalogue;tests\unit\catalogue"
+.\.venv\Scripts\python.exe -m pytest tests\unit\catalogue -q
+
+$env:PYTHONPATH = "services\commandes;tests\unit\commandes"
+.\.venv\Scripts\python.exe -m pytest tests\unit\commandes -q
+
+$env:PYTHONPATH = "services\utilisateurs;tests\unit\utilisateurs"
+.\.venv\Scripts\python.exe -m pytest tests\unit\utilisateurs -q
+
+$env:PYTHONPATH = "services\notifications;tests\unit\notifications"
+.\.venv\Scripts\python.exe -m pytest tests\unit\notifications -q
+
+Remove-Item Env:PYTHONPATH
 ```
 
 Les tests HTTP en processus séparés sont dans `tests/integration/`; ils utilisent
@@ -226,6 +229,9 @@ build réussit et `npm run lint` termine sans avertissement.
 - `monitoring/zabbix/provisioning.py verify` provisionne les sondes HTTP et vérifie
   leur collecte. Le mode `alerte` arrête volontairement toutes les répliques du
   Catalogue; ne le lancer que sur un environnement de démonstration isolé.
+- `monitoring/zabbix/dashboard.py` crée ou met à jour le tableau de bord
+  « MarcheCI - Supervision » : liste des problèmes actifs et une tuile par sonde.
+  À exécuter après le provisionnement lorsque l’hôte et les items existent.
 - Les scénarios k6 sont dans `tests/load/`. Ils lisent Catalogue, mais
   l’orchestrateur fourni arrête Commandes pendant le test de résilience et lance
   les variations d’échelle sur le projet Compose courant. Exécuter ces scénarios
@@ -233,6 +239,14 @@ build réussit et `npm run lint` termine sans avertissement.
 - Les résultats de référence sont conservés dans `docs/reports/`
   (`load_1replica.json`, `load_3replicas.json`, `resilience.json`) et les données
   détaillées dans `docs/reports/raw/`.
+- Le [rapport de test de charge](docs/reports/rapport_test_charge.md) consigne le
+  protocole, les tableaux requêtes/s et latence p95 pour une et trois répliques du
+  Catalogue, l’analyse et les optimisations retenues.
+- Les captures de supervision sont dans `docs/screenshots/` : tableau de bord
+  nominal (`06_tableau_de_bord_zabbix.jpeg`), problème détecté à l’arrêt du
+  Catalogue (`06_problem_actif_dashboard.jpeg`,
+  `06_problem_actif_catalogue.jpeg`) et résolution automatique au redémarrage
+  (`06_problems_resolus_auto.jpeg`).
 
 ## Documentation technique
 
@@ -240,4 +254,5 @@ build réussit et `npm run lint` termine sans avertissement.
 - [Modèles de données](docs/architecture/02-modeles-de-donnees.md)
 - [Contrats des API](docs/api/specifications-api.md)
 - [Réseaux et communications](docs/architecture/04-reseaux-et-communications.md)
+- [Rapport de test de charge](docs/reports/rapport_test_charge.md)
 - [Dossier technique (PDF)](docs/reports/Dossier_technique_MarcheCI.pdf)

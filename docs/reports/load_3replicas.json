@@ -5,23 +5,23 @@
   "ramp_s": 20,
   "hold_s": 40,
   "total": {
-    "requetes": 2679,
-    "debit_rps": 38,
-    "p95_ms": 90,
+    "requetes": 2664,
+    "debit_rps": 37.8,
+    "p95_ms": 89,
     "rate_checks": 1,
-    "duree_ms_total": 1039
+    "duree_ms_total": 1042
   },
   "cache_redis": {
     "p50_ms": 26,
-    "p95_ms": 81,
-    "max_ms": 211,
-    "requetes": 1874
+    "p95_ms": 71,
+    "max_ms": 346,
+    "requetes": 1852
   },
   "db_postgres": {
-    "p50_ms": 34,
-    "p95_ms": 101,
-    "max_ms": 224,
-    "requetes": 805
+    "p50_ms": 43,
+    "p95_ms": 115,
+    "max_ms": 493,
+    "requetes": 812
   },
   "erreurs": {
     "cache": 0,

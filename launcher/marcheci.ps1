@@ -196,6 +196,8 @@ switch ($Action) {
         if ($LASTEXITCODE -ne 0) { Fail 'La configuration du mot de passe administrateur Zabbix a échoué. Consultez launcher\logs.bat zabbix-web.' }
         & $python.Exe @($python.Prefix) 'monitoring/zabbix/provisioning.py' 'verify'
         if ($LASTEXITCODE -ne 0) { Fail 'Le provisionnement ou la collecte Zabbix a échoué. Consultez launcher\logs.bat zabbix-server.' }
+        & $python.Exe @($python.Prefix) 'monitoring/zabbix/dashboard.py'
+        if ($LASTEXITCODE -ne 0) { Fail 'La création du tableau de bord Zabbix a échoué. Consultez launcher\logs.bat zabbix-web.' }
         if (Wait-Url $monitorUrl 60) { Write-Host "[OK] Zabbix accessible sur $monitorUrl" -ForegroundColor Green }
         else { Fail "Zabbix a démarré mais son interface ne répond pas encore sur $monitorUrl." }
     }
